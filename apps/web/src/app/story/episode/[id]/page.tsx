@@ -1304,6 +1304,9 @@ export default function EpisodeWorkspacePage() {
                           sceneId={s.id}
                           sceneNo={s.sceneNo ?? s.sortOrder ?? 0}
                           autoExpand={s.storyboardStatus === "confirmed"}
+                          // 重生本场后 scene.version 会 +1，用作 reloadKey 触发
+                          // 子组件清缓存重新拉取 shots/首帧/视频，避免看到旧 3 shot。
+                          reloadKey={s.version}
                         />
                       </div>
                     );
@@ -1885,6 +1888,7 @@ function SceneShotFrames({
   sceneId,
   sceneNo,
   autoExpand,
+  reloadKey,
 }: {
   sceneId: string;
   sceneNo: number;
@@ -1894,6 +1898,15 @@ function SceneShotFrames({
    * 干嘛"的动作断层。已展开状态不会被再次收起 —— 尊重用户手动 collapse。
    */
   autoExpand?: boolean;
+  /**
+   * 外部触发的"强制重拉"信号。典型场景：场次被「重生本场」推倒重建后，
+   * scene.version + 1，父组件把新 version 透传下来，本组件用它作为依赖
+   * 重置内部 shots/frames 缓存，触发重新拉取。
+   *
+   * 不用 React `key` 强制 remount，是为了保留用户的 `expanded` UI 状态
+   * 与滚动位置，只清缓存而不重建 DOM，交互更平滑。
+   */
+  reloadKey?: number | string;
 }) {
   const [expanded, setExpanded] = useState(!!autoExpand);
   // 当 autoExpand 由 false → true（场次刚被确认）时，自动展开。
@@ -1906,6 +1919,22 @@ function SceneShotFrames({
   const [listErr, setListErr] = useState<string | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
   const [frames, setFrames] = useState<Record<string, ShotFrameState>>({});
+  // ★ 修复「重生本场后 UI 仍显示旧 shot」：
+  // 外部 reloadKey（= scene.version）变化即视为"服务端数据被覆盖了"，
+  // 清空内部缓存后由下面的懒加载 useEffect 重新拉取一次。
+  //
+  // 这里刻意跳过首次渲染（首次 loaded=false 时无需清理，避免多余的 setState）。
+  const isFirstReloadKeyRef = useRef(true);
+  useEffect(() => {
+    if (isFirstReloadKeyRef.current) {
+      isFirstReloadKeyRef.current = false;
+      return;
+    }
+    setLoaded(false);
+    setShots([]);
+    setFrames({});
+    setListErr(null);
+  }, [reloadKey]);
   // 快速创建第 1 个 shot 的内联状态
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
