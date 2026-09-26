@@ -305,12 +305,66 @@ export class StoryboardService extends BaseService {
         expectedVersion,
       );
 
-      // 方案 A：只在本场"还没有任何 shot"时补建；已有 shot（可能已经生成过首帧图/视频）不动，
-      // 避免覆盖胖哥手动改过的 dialogue/action，或让下游 image/video 资产悬挂。
-      const existingShots = this.repos.shots.listByScene(sceneId);
+      // 方案 A：把 LLM 出的 shots 尽量合并进本场——
+      //   - 若某个已有 shot 的 dialogue+action 都为空（典型「一步式创建的占位镜头」），
+      //     就按序号从 draft.shots 里回填 dialogue/action/shotType/intent；
+      //   - 若 draft.shots 数量多于现有 shot，多出来的按 shotNo 递增新建；
+      //   - 若现有 shot 已经写过 dialogue 或 action（胖哥手工编辑过 / 上轮 LLM 已回填），
+      //     不覆盖，保持不动。
+      const existingShots = this.repos.shots
+        .listByScene(sceneId)
+        .slice()
+        .sort((a, b) => a.shotNo - b.shotNo);
       let createdShotCount = 0;
-      if (existingShots.length === 0 && draft.shots.length > 0) {
-        createdShotCount = this.createShotsFromDrafts(sceneId, draft.shots);
+      let backfilledShotCount = 0;
+      let nextShotNo =
+        existingShots.length > 0
+          ? Math.max(...existingShots.map((s) => s.shotNo)) + 1
+          : 1;
+      for (let i = 0; i < draft.shots.length; i += 1) {
+        const d = draft.shots[i]!;
+        const hasContent =
+          (d.dialogue?.trim().length ?? 0) > 0 ||
+          (d.action?.trim().length ?? 0) > 0;
+        if (!hasContent) continue;
+        const existing = existingShots[i];
+        if (existing) {
+          const hasDialogue = (existing.dialogue?.trim().length ?? 0) > 0;
+          const hasAction = (existing.action?.trim().length ?? 0) > 0;
+          if (!hasDialogue && !hasAction) {
+            this.repos.shots.update(
+              existing.id,
+              {
+                dialogue: d.dialogue || undefined,
+                action: d.action || undefined,
+                shotType: existing.shotType || d.shotType,
+                intent: existing.intent || d.intent,
+              },
+              existing.version,
+            );
+            backfilledShotCount += 1;
+          }
+          // else: 已有内容 → 尊重胖哥/上轮的成果，跳过
+        } else {
+          this.repos.shots.create({
+            sceneId,
+            shotNo: nextShotNo,
+            shotType: d.shotType,
+            intent: d.intent,
+            cameraPlan: {},
+            performanceNotes: undefined,
+            startState: {},
+            endState: {},
+            handoffAnchor: {},
+            isKeyShot: false,
+            durationSec: undefined,
+            dialogue: d.dialogue || undefined,
+            action: d.action || undefined,
+            sortOrder: nextShotNo * 10,
+          });
+          createdShotCount += 1;
+          nextShotNo += 1;
+        }
       }
 
       // Round-3 P2-⑤：把本场名下的所有 succeeded 图片打上 stale 标签。
@@ -341,6 +395,7 @@ export class StoryboardService extends BaseService {
             previousSummary: existing.summary ?? null,
             stalePhotos,
             createdShotCount,
+            backfilledShotCount,
           },
         },
       });
