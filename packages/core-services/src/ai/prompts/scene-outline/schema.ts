@@ -40,8 +40,11 @@ export const SceneOutlineItemSchema = z.object({
   /**
    * 方案 A：LLM 分场时同步产出的 shot 列表。允许缺省（老版本 pack / 旧模型不输出）；
    * 若产出，storyboard-service 会用它一次性建 shots + dialogue + action。
+   *
+   * 上限 `.max(4)`：短剧竖屏场景，prompt 明确要求"默认 1 shot / 必要时 2 / 最多 3"，
+   * schema 硬拦到 4 兜底，防 LLM 越界输出（此前 .max(8) 与 prompt 意图不一致）。
    */
-  shots: z.array(SceneOutlineShotSchema).max(8).default([]),
+  shots: z.array(SceneOutlineShotSchema).max(4).default([]),
 });
 
 export const SceneOutlineListSchema = z.array(SceneOutlineItemSchema).min(1).max(20);

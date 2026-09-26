@@ -291,7 +291,19 @@ export class StoryboardService extends BaseService {
     }
 
     return this.repos.transaction(() => {
-      // 直接走 repo.update（绕开 external updateSceneSchema，允许一并重置 storyboardStatus）。
+      // ⚠️ 语义变更（2026-09-26）：从「合并式回填」改为「推倒重建」。
+      //
+      // 旧行为：仅回填 dialogue/action 都空的占位 shot；旧 shot 恒保留；
+      //         图片打 stale 标；视频不处理 → 剧情变了但视频依旧展示，
+      //         导致 UI 误导（"重生了但视觉没变"）。
+      // 新行为：删除本场所有旧 shot；数据库层通过 ON DELETE CASCADE
+      //         自动清理下游 image_assets / video_assets / keyframe_specs /
+      //         shot_characters / shot_props；然后按 draft 全新重建。
+      //         scene-level 图片（shot_id 为空、仅挂 scene_id）不受影响。
+      //
+      // 前端在触发前弹了明确 confirm，胖哥已知情本场的图/视频都会消失。
+
+      // 1) 更新 scene 表本身（title / summary / goal / conflict / timeOfDay / status）
       const updated = this.repos.scenes.update(
         sceneId,
         {
@@ -305,81 +317,27 @@ export class StoryboardService extends BaseService {
         expectedVersion,
       );
 
-      // 方案 A：把 LLM 出的 shots 尽量合并进本场——
-      //   - 若某个已有 shot 的 dialogue+action 都为空（典型「一步式创建的占位镜头」），
-      //     就按序号从 draft.shots 里回填 dialogue/action/shotType/intent；
-      //   - 若 draft.shots 数量多于现有 shot，多出来的按 shotNo 递增新建；
-      //   - 若现有 shot 已经写过 dialogue 或 action（胖哥手工编辑过 / 上轮 LLM 已回填），
-      //     不覆盖，保持不动。
-      const existingShots = this.repos.shots
-        .listByScene(sceneId)
-        .slice()
-        .sort((a, b) => a.shotNo - b.shotNo);
-      let createdShotCount = 0;
-      let backfilledShotCount = 0;
-      let nextShotNo =
-        existingShots.length > 0
-          ? Math.max(...existingShots.map((s) => s.shotNo)) + 1
-          : 1;
-      for (let i = 0; i < draft.shots.length; i += 1) {
-        const d = draft.shots[i]!;
-        const hasContent =
-          (d.dialogue?.trim().length ?? 0) > 0 ||
-          (d.action?.trim().length ?? 0) > 0;
-        if (!hasContent) continue;
-        const existing = existingShots[i];
-        if (existing) {
-          const hasDialogue = (existing.dialogue?.trim().length ?? 0) > 0;
-          const hasAction = (existing.action?.trim().length ?? 0) > 0;
-          if (!hasDialogue && !hasAction) {
-            this.repos.shots.update(
-              existing.id,
-              {
-                dialogue: d.dialogue || undefined,
-                action: d.action || undefined,
-                shotType: existing.shotType || d.shotType,
-                intent: existing.intent || d.intent,
-              },
-              existing.version,
-            );
-            backfilledShotCount += 1;
-          }
-          // else: 已有内容 → 尊重胖哥/上轮的成果，跳过
-        } else {
-          this.repos.shots.create({
-            sceneId,
-            shotNo: nextShotNo,
-            shotType: d.shotType,
-            intent: d.intent,
-            cameraPlan: {},
-            performanceNotes: undefined,
-            startState: {},
-            endState: {},
-            handoffAnchor: {},
-            isKeyShot: false,
-            durationSec: undefined,
-            dialogue: d.dialogue || undefined,
-            action: d.action || undefined,
-            sortOrder: nextShotNo * 10,
-          });
-          createdShotCount += 1;
-          nextShotNo += 1;
-        }
+      // 2) 删除前先清点（用于 activity log 与后置提示）
+      const oldShots = this.repos.shots.listByScene(sceneId);
+      let deletedImageCount = 0;
+      let deletedVideoCount = 0;
+      let deletedKeyframeCount = 0;
+      for (const s of oldShots) {
+        deletedImageCount += this.repos.imageAssets.listByShot(s.id).length;
+        deletedVideoCount += this.repos.videoAssets.listByShot(s.id).length;
+        deletedKeyframeCount += this.repos.keyframeSpecs.listByShot(s.id).length;
+      }
+      const deletedShotCount = oldShots.length;
+
+      // 3) 推倒：删除所有旧 shot（DB CASCADE 自动清关联的 image_assets /
+      //    video_assets / keyframe_specs / shot_characters / shot_props）。
+      //    注意：base.delete() 不检查 version，是我们想要的强制清理语义。
+      for (const s of oldShots) {
+        this.repos.shots.delete(s.id);
       }
 
-      // Round-3 P2-⑤：把本场名下的所有 succeeded 图片打上 stale 标签。
-      // 前端会以 "⚠️ 已过期" 标识展示，胖哥可以按需重生。
-      // 这里内联实现（不引 ImageAssetService 依赖）以保持 storyboard-service 的边界。
-      let stalePhotos = 0;
-      for (const img of this.repos.imageAssets.listByScene(sceneId)) {
-        if (img.status === "succeeded") {
-          this.repos.imageAssets.update(img.id, {
-            status: "stale",
-            staleReason: "scene_regenerated",
-          });
-          stalePhotos += 1;
-        }
-      }
+      // 4) 重建：按 draft.shots 全新落库
+      const createdShotCount = this.createShotsFromDrafts(sceneId, draft.shots);
 
       this.recomputeEpisodeStoryboardRollup(existing.episodeId);
       this.logActivity({
@@ -393,9 +351,11 @@ export class StoryboardService extends BaseService {
           extra: {
             previousTitle: existing.title ?? null,
             previousSummary: existing.summary ?? null,
-            stalePhotos,
+            deletedShotCount,
+            deletedImageCount,
+            deletedVideoCount,
+            deletedKeyframeCount,
             createdShotCount,
-            backfilledShotCount,
           },
         },
       });
@@ -681,19 +641,23 @@ export class StoryboardService extends BaseService {
 
   /**
    * 方案 A 内部辅助：把 scene-outline LLM 产出的 shot drafts 批量落库。
+   *
    * - 需要在已有事务里调用（`generateScenes` / `regenerateScene`）；
-   * - 假设本场当前 shot 数量已知（默认从 1 号开始编号）；
+   * - `startShotNo` 为编号起点（默认 1）：现有调用点都是"本场从零建"场景，
+   *   `regenerateScene` 已经在调用前清空全部旧 shot，`generateScenes` 是新建 scene。
+   *   参数化只是为未来支持"续建"预留（例如接力生成），避免函数注释与实现约定漂移。
    * - drafts 空数组 → 直接返回 0，不建任何 shot（依然允许下游一步式创建）。
    */
   private createShotsFromDrafts(
     sceneId: Id,
     drafts: SceneOutlineDraft["shots"],
+    startShotNo = 1,
   ): number {
     if (!drafts || drafts.length === 0) return 0;
     let created = 0;
     for (let i = 0; i < drafts.length; i += 1) {
       const d = drafts[i]!;
-      const shotNo = i + 1;
+      const shotNo = startShotNo + i;
       this.repos.shots.create({
         sceneId,
         shotNo,
@@ -929,8 +893,12 @@ export class StoryboardService extends BaseService {
  *
  * - 若 LLM 完全没输出 shots（老模型 / 老 pack）→ 补一个兜底 shot，用 scene summary
  *   当 action，避免下游"零 shot 场次"卡死一步式生成流程。
+ *   TODO(2026-09-26): 兜底把 scene.summary 塞到 shot.action 会让
+ *     estimateShotDuration.shot_text 分支用宏观场景描述当分镜动作估时长，
+ *     语义有偏移。目前仅在 LLM 完全不输出 shots 时触发（极罕见），
+ *     可接受；未来若 pack 升级不再需要兜底，可移除本分支。
  * - 若输出了但 dialogue+action 都为空 → 视为空 shot，丢掉。
- * - 最多保留 8 个（跟 schema `.max(8)` 对齐）。
+ * - 上限跟 SceneOutlineShotSchema 数组的 `.max(4)` 对齐，slice 兜底防越界。
  */
 function normaliseShots(
   raw: Array<{
@@ -954,7 +922,7 @@ function normaliseShots(
       intent: s.intent?.trim() || undefined,
     }))
     .filter((s) => s.dialogue.length > 0 || s.action.length > 0)
-    .slice(0, 8);
+    .slice(0, 4);
   if (cleaned.length > 0) return cleaned;
   // LLM 没给 → 拿 scene.summary 兜一个 shot（比空场好，也让 estimateShotDuration 有料算）
   const summary = (sceneSummary ?? "").trim();

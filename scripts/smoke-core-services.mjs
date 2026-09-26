@@ -84,7 +84,8 @@ assert(curDefault.id === look2.id, "default moved to v2");
 const scene = board.createScene({ episodeId: ep.id, sceneNo: 1, summary: "开场", sortOrder: 0 });
 // episode was 'confirmed' storyboardStatus? recompute set to draft because scene is draft
 assert(registry.episodes.getById(ep.id).storyboardStatus === "draft", "episode rollup draft after adding draft scene");
-expectDomainError(() => board.confirmScene(scene.id, scene.version), "blocked_by_issue", "confirm scene with no shots");
+// 注意（2026-09-26）：confirmScene 已解除硬校验（AI-first-frame 流水线不依赖 keyframe/shotType），
+// 因此"无 shot 也能确认"，此处不再校验 blocked_by_issue。
 
 const shot = board.createShot({ sceneId: scene.id, shotNo: 1, shotType: "中景", intent: "介绍主角", sortOrder: 0 });
 const kfStart = board.createKeyframe({ shotId: shot.id, frameType: "start" });
@@ -108,6 +109,74 @@ expectDomainError(() => assets.disableCharacter(hero.id, hero.version), "blocked
 board.removeSceneCharacter(scene.id, hero.id);
 const disabled = assets.disableCharacter(hero.id, hero.version);
 assert(disabled.status === "disabled", "character disabled after unlink");
+
+// --- CASCADE assumption for regenerateScene 推倒重建（2026-09-26）---
+// regenerateScene 新版依赖 shot.id 的所有下游 FK ON DELETE CASCADE + PRAGMA foreign_keys=ON。
+// 任何后续 migration 若变更约束，这里会立即挂掉，避免退回到"shot 删了但视频/首帧还挂着"。
+const cascadeShot = board.createShot({
+  sceneId: scene.id,
+  shotNo: 99,
+  shotType: "远景",
+  intent: "CASCADE 假设自测",
+  sortOrder: 990,
+});
+registry.imageAssets.create({
+  episodeId: ep.id,
+  sceneId: scene.id,
+  shotId: cascadeShot.id,
+  keyframeId: undefined,
+  characterId: undefined,
+  locationId: undefined,
+  propId: undefined,
+  provider: "volcengine-ark",
+  modelId: "smoke-model",
+  promptPositive: "smoke",
+  promptPositiveZh: undefined,
+  sizePreset: "1024x1024",
+  seed: undefined,
+  base64: "",
+  mimeType: "image/png",
+  rawResponse: {},
+  status: "succeeded",
+  errorMessage: undefined,
+  attemptCount: 1,
+  retryOfId: undefined,
+  staleReason: undefined,
+});
+registry.videoAssets.create({
+  episodeId: ep.id,
+  sceneId: scene.id,
+  shotId: cascadeShot.id,
+  firstFrameImageId: undefined,
+  provider: "volcengine-ark",
+  modelId: "smoke-video-model",
+  prompt: "smoke",
+  promptZh: undefined,
+  resolution: "1080p",
+  ratio: "9:16",
+  durationSec: 5,
+  durationSource: "default",
+  durationDialogueChars: 0,
+  durationActionChars: 0,
+  isI2V: false,
+  videoUrl: "",
+  lastFrameUrl: undefined,
+  taskId: undefined,
+  rawResponse: {},
+  status: "succeeded",
+  errorMessage: undefined,
+  attemptCount: 1,
+  retryOfId: undefined,
+  staleReason: undefined,
+});
+board.createKeyframe({ shotId: cascadeShot.id, frameType: "start" });
+assert(registry.imageAssets.listByShot(cascadeShot.id).length === 1, "seed: image linked to cascade shot");
+assert(registry.videoAssets.listByShot(cascadeShot.id).length === 1, "seed: video linked to cascade shot");
+assert(registry.keyframeSpecs.listByShot(cascadeShot.id).length === 1, "seed: keyframe linked to cascade shot");
+registry.shots.delete(cascadeShot.id);
+assert(registry.imageAssets.listByShot(cascadeShot.id).length === 0, "CASCADE: image_assets 已随 shot 删除清空");
+assert(registry.videoAssets.listByShot(cascadeShot.id).length === 0, "CASCADE: video_assets 已随 shot 删除清空");
+assert(registry.keyframeSpecs.listByShot(cascadeShot.id).length === 0, "CASCADE: keyframe_specs 已随 shot 删除清空");
 
 // activity feed recorded
 const feed = registry.activityEvents.listByProject(project.id);
@@ -156,7 +225,7 @@ const videoInput = compiler.assembleShotInput(shot.id, "video", boundProfile.id)
 const spec1 = compiler.compile(videoInput);
 assert(spec1.status === "draft", "compiled prompt is draft");
 assert(spec1.targetType === "video", "compiled prompt target video");
-assert(spec1.sections.length === 6, "video prompt has 6 fixed sections");
+assert(spec1.sections.length === 7, "video prompt has 7 fixed sections");
 // compiledPrompt must be the ordered concatenation of the same sections
 const expectedPrompt = spec1.sections.map((s) => `【${s.label}】\n${s.content}`).join("\n\n");
 assert(spec1.compiledPrompt === expectedPrompt, "compiledPrompt equals ordered section concatenation");

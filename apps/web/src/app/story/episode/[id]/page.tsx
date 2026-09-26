@@ -441,7 +441,9 @@ export default function EpisodeWorkspacePage() {
     // 已经在重生中就忽略（避免同一场次的重复点击导致版本冲突）。
     if (regeneratingSceneIds.has(s.id)) return;
     const confirmed = window.confirm(
-      `确认让 AI 重新生成 S${s.sceneNo}${s.title ? ` · ${s.title}` : ""} 吗？\n\n此操作会覆盖原摘要 / 戏剧目标 / 冲突，且状态会回到「草稿」，需要重新走确认流程；关联的分镜镜头、首帧图、视频可能需要重生。`,
+      `⚠️ 确认重生 S${s.sceneNo}${s.title ? ` · ${s.title}` : ""}？\n\n` +
+        `本场所有分镜、首帧图、视频将被【彻底删除】并按新剧情重建，操作无法撤销。\n\n` +
+        `（场次摘要 / 戏剧目标 / 冲突也会一并覆盖，状态回到「草稿」需重新确认）`,
     );
     if (!confirmed) return;
     setRegeneratingSceneIds((prev) => {
@@ -2731,6 +2733,9 @@ function SceneShotFrames({
       )}
       {lightboxSrc && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightboxLabel ? `预览 ${lightboxLabel}` : "首帧图预览"}
           onClick={() => setLightboxSrc(null)}
           style={{
             position: "fixed",

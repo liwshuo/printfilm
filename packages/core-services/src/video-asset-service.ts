@@ -711,6 +711,16 @@ interface DurationEstimate {
     | "text_estimate"
     | "scene_summary"
     | "default";
+  /**
+   * ⚠️ 字段语义随 source 变化，UI/落库端务必配合 source 一起解读：
+   *   - `shot_text` / `text_estimate` / `explicit`：字面语义 —— 真正的 dialogue / action 字数
+   *   - `scene_summary`：语义偏移承载 ——
+   *       `dialogueChars` 承载 shot 独有文本字符数（intent + performanceNotes）
+   *       `actionChars`   承载 scene 自由文本按 shot 数均摊后的字符数（scene.summary + goal + conflict）
+   *     命名保留只为兼容前端 tooltip 与 video_assets 已落库列；未来若引入
+   *     `otherChars` 三字段方案，可通过新 migration 严格解耦。
+   *   - `default`：均为 0。
+   */
   dialogueChars: number;
   actionChars: number;
 }
