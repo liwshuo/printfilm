@@ -22,7 +22,6 @@ import {
   computeEpisodeStoryboardRollup,
   computeKeyframeGate,
   missingResource,
-  blockedByIssue,
   providerUnavailable,
   CONTENT_TYPE_REGISTRY,
   type Scene,
@@ -53,6 +52,16 @@ interface SceneOutlineDraft {
   dramaticGoal: string;
   conflict: string;
   timeOfDay: string;
+  /**
+   * 方案 A：LLM 一次性产出的 shot 骨架。允许为空数组（模型偶发不输出）；
+   * 上游 buildScenesFromLlm 会保证至少给出兜底 shot（避免空场无法建镜）。
+   */
+  shots: Array<{
+    dialogue: string;
+    action: string;
+    shotType?: string;
+    intent?: string;
+  }>;
 }
 
 /** Asset context ({@link collectAssetContext} return) shared by scene-outline prompt. */
@@ -204,6 +213,8 @@ export class StoryboardService extends BaseService {
           storyboardStatus: "draft",
           sortOrder: sceneNo * 10,
         });
+        // 方案 A：LLM 出的 shots 一次性落库（dialogue/action 直接写 shots 表）。
+        this.createShotsFromDrafts(scene.id, d.shots);
         created.push(scene);
       }
       this.recomputeEpisodeStoryboardRollup(episodeId);
@@ -294,6 +305,14 @@ export class StoryboardService extends BaseService {
         expectedVersion,
       );
 
+      // 方案 A：只在本场"还没有任何 shot"时补建；已有 shot（可能已经生成过首帧图/视频）不动，
+      // 避免覆盖胖哥手动改过的 dialogue/action，或让下游 image/video 资产悬挂。
+      const existingShots = this.repos.shots.listByScene(sceneId);
+      let createdShotCount = 0;
+      if (existingShots.length === 0 && draft.shots.length > 0) {
+        createdShotCount = this.createShotsFromDrafts(sceneId, draft.shots);
+      }
+
       // Round-3 P2-⑤：把本场名下的所有 succeeded 图片打上 stale 标签。
       // 前端会以 "⚠️ 已过期" 标识展示，胖哥可以按需重生。
       // 这里内联实现（不引 ImageAssetService 依赖）以保持 storyboard-service 的边界。
@@ -321,6 +340,7 @@ export class StoryboardService extends BaseService {
             previousTitle: existing.title ?? null,
             previousSummary: existing.summary ?? null,
             stalePhotos,
+            createdShotCount,
           },
         },
       });
@@ -411,6 +431,7 @@ export class StoryboardService extends BaseService {
       dramaticGoal: it.dramaticGoal,
       conflict: it.conflict,
       timeOfDay: it.timeOfDay,
+      shots: normaliseShots(it.shots, it.summary),
     }));
   }
 
@@ -483,33 +504,26 @@ export class StoryboardService extends BaseService {
   }
 
   /**
-   * Confirm a scene's storyboard; gated by the hard-check, then recompute rollup.
+   * Confirm a scene's storyboard status.
    *
-   * 分两级语义（Round-3 UX 修正）：
-   *   - **场次骨架阶段**：本场尚无任何 shot（尚未进入 storyboard studio），
-   *     视为"骨架确认"（title / summary / dramaticGoal / conflict / timeOfDay
-   *     已敲定），直接放行。此时若强行执行分镜硬校验，会导致 shots.length === 0
-   *     → passable=false → blockedShots=[] 的诡异错误，UX 灾难。
-   *   - **分镜阶段**：本场已有 shot，才做原硬校验（keyframe 齐全 + shotType /
-   *     intent 齐全），保持 adr-006 §4 的产出闸门。
+   * 设计说明（Round-4 UX 修正）：
+   *   - 早期设计里，本方法在"本场已有 shot"时会执行硬校验（keyframe 齐全 +
+   *     shotType/intent 齐全），失败即抛 `blockedByIssue`，直接阻塞确认。
+   *   - 但当前主流 AI 工作流（image-first-frame + i2v 视频生成）**从不填**
+   *     `keyframeSpecs`、常常不填 `shotType/intent`——这些字段是编导注解，
+   *     对 AI pipeline 无强依赖。硬 gate 会导致"视频都生成完了，分镜却
+   *     confirm 不了"的死锁 UX。
+   *   - 因此确认动作改为**纯状态跃迁**：前端如需提示缺项，主动调
+   *     `validateStoryboard` 拿到 fieldGaps / keyframeGate，作为 **warning**
+   *     展示，不再作为 blocker。
    */
   confirmScene(sceneId: Id, expectedVersion: number): Scene {
     return this.repos.transaction(() => {
       const scene = this.repos.scenes.getById(sceneId);
       if (!scene) throw missingResource(`分镜场不存在：${sceneId}`, { id: sceneId });
-      // 有 shot 时才走分镜硬校验；纯骨架阶段直接放行。
-      const shotsInScene = this.repos.shots.listByScene(sceneId);
-      if (shotsInScene.length > 0) {
-        const validation = this.buildValidateResult(sceneId);
-        if (!validation.passable) {
-          throw blockedByIssue("分镜未通过硬校验，无法确认", {
-            sceneId,
-            blockedShots: validation.shots
-              .filter((s) => !s.keyframeGate.producible || s.fieldGaps.length > 0)
-              .map((s) => s.shotId),
-          });
-        }
-      }
+      // 说明：AI-first-frame/video 工作流不依赖手动 keyframeSpecs / shotType / intent，
+      // 确认分镜是用户显式操作，validate 结果只作为 UI warning 展示，
+      // 不再作为 hard-check 阻塞确认动作（避免"视频都出了还确认不了"的死锁）。
       const updated = this.repos.scenes.update(
         sceneId,
         { storyboardStatus: "confirmed" },
@@ -603,9 +617,47 @@ export class StoryboardService extends BaseService {
         handoffAnchor: input.handoffAnchor,
         isKeyShot: input.isKeyShot,
         durationSec: input.durationSec,
+        dialogue: input.dialogue,
+        action: input.action,
         sortOrder: input.sortOrder,
       });
     });
+  }
+
+  /**
+   * 方案 A 内部辅助：把 scene-outline LLM 产出的 shot drafts 批量落库。
+   * - 需要在已有事务里调用（`generateScenes` / `regenerateScene`）；
+   * - 假设本场当前 shot 数量已知（默认从 1 号开始编号）；
+   * - drafts 空数组 → 直接返回 0，不建任何 shot（依然允许下游一步式创建）。
+   */
+  private createShotsFromDrafts(
+    sceneId: Id,
+    drafts: SceneOutlineDraft["shots"],
+  ): number {
+    if (!drafts || drafts.length === 0) return 0;
+    let created = 0;
+    for (let i = 0; i < drafts.length; i += 1) {
+      const d = drafts[i]!;
+      const shotNo = i + 1;
+      this.repos.shots.create({
+        sceneId,
+        shotNo,
+        shotType: d.shotType,
+        intent: d.intent,
+        cameraPlan: {},
+        performanceNotes: undefined,
+        startState: {},
+        endState: {},
+        handoffAnchor: {},
+        isKeyShot: false,
+        durationSec: undefined,
+        dialogue: d.dialogue || undefined,
+        action: d.action || undefined,
+        sortOrder: shotNo * 10,
+      });
+      created += 1;
+    }
+    return created;
   }
 
   updateShot(id: Id, raw: unknown): Shot {
@@ -815,4 +867,49 @@ export class StoryboardService extends BaseService {
       );
     return { passable, shots: shotResults };
   }
+}
+
+/**
+ * 方案 A 辅助：规范化 LLM 输出的 shots。
+ *
+ * - 若 LLM 完全没输出 shots（老模型 / 老 pack）→ 补一个兜底 shot，用 scene summary
+ *   当 action，避免下游"零 shot 场次"卡死一步式生成流程。
+ * - 若输出了但 dialogue+action 都为空 → 视为空 shot，丢掉。
+ * - 最多保留 8 个（跟 schema `.max(8)` 对齐）。
+ */
+function normaliseShots(
+  raw: Array<{
+    dialogue: string;
+    action: string;
+    shotType?: string;
+    intent?: string;
+  }>,
+  sceneSummary: string,
+): Array<{
+  dialogue: string;
+  action: string;
+  shotType?: string;
+  intent?: string;
+}> {
+  const cleaned = (raw ?? [])
+    .map((s) => ({
+      dialogue: (s.dialogue ?? "").trim(),
+      action: (s.action ?? "").trim(),
+      shotType: s.shotType?.trim() || undefined,
+      intent: s.intent?.trim() || undefined,
+    }))
+    .filter((s) => s.dialogue.length > 0 || s.action.length > 0)
+    .slice(0, 8);
+  if (cleaned.length > 0) return cleaned;
+  // LLM 没给 → 拿 scene.summary 兜一个 shot（比空场好，也让 estimateShotDuration 有料算）
+  const summary = (sceneSummary ?? "").trim();
+  if (!summary) return [];
+  return [
+    {
+      dialogue: "",
+      action: summary,
+      shotType: undefined,
+      intent: undefined,
+    },
+  ];
 }

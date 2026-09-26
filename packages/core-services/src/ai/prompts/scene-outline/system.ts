@@ -47,7 +47,14 @@ export function buildSceneOutlineSystem(ctx: SceneOutlineCtx): string {
     `内容形态：${meta.zh}（${meta.desc}）。`,
     beat,
     "严格输出 JSON 数组，不要 markdown 围栏，不要多余文字。每项 schema：",
-    '{ "title": string, "summary": string, "dramaticGoal": string, "conflict": string, "timeOfDay": "day" | "night" | "dusk" | "dawn" }',
+    '{ "title": string, "summary": string, "dramaticGoal": string, "conflict": string, "timeOfDay": "day" | "night" | "dusk" | "dawn", "shots": [{ "dialogue": string, "action": string, "shotType"?: string, "intent"?: string }] }',
+    "shots 说明（方案 A · 必填）：",
+    "  - 每个 scene 拆 1~4 个 shot，覆盖本场核心动作与台词。短场 1~2 个即可，长场最多 4 个。",
+    "  - dialogue：该 shot 的完整台词。多角色对话用换行分隔，格式 `角色名：台词`。纯动作/氛围镜头留空字符串。",
+    "  - action：该 shot 的画面/动作/情绪描述，20~120 字，聚焦可视化行为，不写抽象心理描写。",
+    "  - shotType：可选，用行业术语（Wide / Medium / Close-up / Over-the-shoulder / Handheld tracking …）。",
+    "  - intent：可选，一句话说明本 shot 想传达的情绪或信息点。",
+    "  - 严禁把整段剧情堆在一个 shot 里；宁可拆细，也不要合并。",
     "全部字段使用简体中文。",
   ].join("\n");
 }

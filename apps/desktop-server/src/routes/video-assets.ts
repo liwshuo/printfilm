@@ -34,6 +34,19 @@ export function videoAssetsRouter(): Hono<AppEnv> {
     return c.json({ items });
   });
 
+  /**
+   * Round-4 Phase-C 补丁：视频生成预览。
+   * 在真正调 Ark 之前，把即将下发的 durationSec / resolution / ratio / modelId /
+   * isI2V 全部预算出来，供 Shot 卡片在生成按钮上方直接展示。
+   *
+   *  GET /api/shots/:id/video-preview → 200 ShotVideoPreview
+   */
+  r.get("/shots/:id/video-preview", (c) => {
+    const shotId = c.req.param("id");
+    const preview = c.get("services").videoAsset.previewShotVideoParams(shotId);
+    return c.json(preview);
+  });
+
   r.post("/shots/:id/generate-video", async (c) => {
     const shotId = c.req.param("id");
     // 允许可选 body：{ durationSec?, resolution?, ratio?, generateAudio?, cameraFixed? }

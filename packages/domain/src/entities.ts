@@ -258,6 +258,16 @@ export interface Shot extends BaseEntity {
   handoffAnchor: Record<string, unknown>;
   isKeyShot: boolean;
   durationSec?: number;
+  /**
+   * 方案 A：shot 粒度台词文本，由 LLM 在 scene_outline 阶段一次性产出。
+   * 空表示该 shot 无台词（纯动作/氛围镜头）。
+   */
+  dialogue?: string;
+  /**
+   * 方案 A：shot 粒度动作/画面描述，由 LLM 一次性产出。
+   * 与 `scene_action_blocks`（结构化 actor/prop refs）互补，普通短剧场景优先用它。
+   */
+  action?: string;
   version: number;
   sortOrder: number;
 }
@@ -610,6 +620,29 @@ export interface VideoAsset extends BaseEntity {
   ratio: string;
   /** 时长（秒），Seedance 2.0-mini 上限 15。 */
   durationSec: number;
+  /**
+   * 时长来源（0009 migration）：
+   *   - `explicit`       — 上游/shot 显式指定
+   *   - `text_estimate`  — 由 dialogue/action 块字数精确估算
+   *   - `scene_summary`  — 块表空，退回 scene.summary + shot.intent 等自由文本估算
+   *   - `default`        — 无信号，用默认值兜底
+   * 历史行为 `undefined`。
+   */
+  durationSource?:
+    | "explicit"
+    | "shot_text"
+    | "text_estimate"
+    | "scene_summary"
+    | "default";
+  /** 参与估算的场次台词字数；`durationSource !== "text_estimate"` 时为 0。 */
+  durationDialogueChars: number;
+  /** 参与估算的场次动作字数；`durationSource !== "text_estimate"` 时为 0。 */
+  durationActionChars: number;
+  /**
+   * 是否 image-to-video 生成。
+   * 目前只要挂了首帧图（`firstFrameImageId` 有值或首帧来自接力 `lastFrameUrl`）即为 true。
+   */
+  isI2V: boolean;
   /** 上游 24h 过期临时 URL；到期需重生。 */
   videoUrl: string;
   /** 末帧图 URL；可作为下一 shot 视频接力锚点。 */

@@ -324,6 +324,8 @@ export const createShotSchema = z.object({
   handoffAnchor: jsonObject.default({}),
   isKeyShot: z.boolean().default(false),
   durationSec: z.number().positive().optional(),
+  dialogue: z.string().optional(),
+  action: z.string().optional(),
   sortOrder: z.number().int().nonnegative(),
 });
 
@@ -337,6 +339,8 @@ export const updateShotSchema = withVersion({
   handoffAnchor: jsonObject.optional(),
   isKeyShot: z.boolean().optional(),
   durationSec: z.number().positive().optional(),
+  dialogue: z.string().optional(),
+  action: z.string().optional(),
   sortOrder: z.number().int().nonnegative().optional(),
 });
 

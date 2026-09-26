@@ -298,6 +298,7 @@ export interface Shot {
   shotNo: number;
   shotType?: string;
   dialogue?: string;
+  action?: string;
   version: number;
   createdAt?: string;
   updatedAt?: string;
@@ -750,6 +751,24 @@ export interface VideoAssetRecord {
   resolution: string;
   ratio: string;
   durationSec: number;
+  /**
+   * 时长来源（0009 migration）：
+   *   - `explicit`       — 显式传入 / shot 上有 durationSec
+   *   - `text_estimate`  — 由 dialogue/action 块字数精确估算
+   *   - `scene_summary`  — 块表空，退回 scene.summary + shot.intent 自由文本估算
+   *   - `default`        — 无信号，使用默认值兜底
+   * 老数据 undefined。
+   */
+  durationSource?:
+    | "explicit"
+    | "shot_text"
+    | "text_estimate"
+    | "scene_summary"
+    | "default";
+  durationDialogueChars: number;
+  durationActionChars: number;
+  /** 是否 image-to-video（当前 shot 视频生成入口始终为 true）。 */
+  isI2V: boolean;
   videoUrl: string;
   lastFrameUrl?: string;
   taskId?: string;
@@ -770,11 +789,35 @@ export interface GenerateShotVideoBody {
   cameraFixed?: boolean;
 }
 
+/**
+ * Round-4 Phase-C 补丁：视频生成预览。
+ *
+ * 由 `GET /api/shots/:id/video-preview` 返回。前端在渲染 Shot 卡片时主动拉一次，
+ * 让用户在点击"生成本段视频"前就能看到即将下发的参数（时长、分辨率、模式等）。
+ */
+export interface ShotVideoPreview {
+  shotId: string;
+  canGenerate: boolean;
+  blockers: string[];
+  warnings: string[];
+  durationSec: number;
+  durationSource: "explicit" | "shot_text" | "text_estimate" | "scene_summary" | "default";
+  durationDialogueChars: number;
+  durationActionChars: number;
+  resolution: "480p" | "720p" | "1080p";
+  ratio: "9:16" | "16:9" | "1:1" | "4:3" | "3:4";
+  modelId: string;
+  isI2V: boolean;
+  firstFrameImageId?: string;
+}
+
 export const videoAssets = {
   listByShot: (shotId: string) =>
     api.get<{ items: VideoAssetRecord[] }>(
       `/api/shots/${shotId}/video-assets`,
     ),
+  previewShotVideo: (shotId: string) =>
+    api.get<ShotVideoPreview>(`/api/shots/${shotId}/video-preview`),
   generateShotVideo: (shotId: string, body: GenerateShotVideoBody = {}) =>
     api.post<{ asset: VideoAssetRecord }>(
       `/api/shots/${shotId}/generate-video`,

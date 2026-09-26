@@ -2,9 +2,30 @@
  * Scene Outline schema (Stage D).
  *
  * 综合方案 §4.D：一集下的 N 个 scene/段落/跨页骨架。
+ *
+ * 方案 A（2026-09-26）：每个 scene 额外产出 `shots` 数组，
+ *   每个 shot 挂 `dialogue` + `action` 字符串，直接落 shots 表。
+ *   参考项目 sd3 / CineGen-ShortDrama 的做法：shot 上带
+ *   `actionSummary + dialogue`，由 LLM 一次性产出，无需再手工填。
  */
 
 import { z } from "zod";
+
+/**
+ * 方案 A：LLM 输出的 shot 骨架。字段极简、全部文本：
+ *   - dialogue    该 shot 完整台词（可为空，纯动作镜头就留空）
+ *   - action      该 shot 动作/画面描述
+ *   - shotType    景别（Wide/Medium/Close-up …），可选
+ *   - intent      该 shot 想传达的情绪/信息，可选
+ *
+ * 落库时会补 shotNo / sortOrder。
+ */
+export const SceneOutlineShotSchema = z.object({
+  dialogue: z.string().max(400).default(""),
+  action: z.string().max(400).default(""),
+  shotType: z.string().max(40).optional(),
+  intent: z.string().max(200).optional(),
+});
 
 export const SceneOutlineItemSchema = z.object({
   title: z.string().min(1).max(80),
@@ -16,10 +37,16 @@ export const SceneOutlineItemSchema = z.object({
     .string()
     .default("day")
     .transform((raw) => normaliseTimeOfDay(raw)),
+  /**
+   * 方案 A：LLM 分场时同步产出的 shot 列表。允许缺省（老版本 pack / 旧模型不输出）；
+   * 若产出，storyboard-service 会用它一次性建 shots + dialogue + action。
+   */
+  shots: z.array(SceneOutlineShotSchema).max(8).default([]),
 });
 
 export const SceneOutlineListSchema = z.array(SceneOutlineItemSchema).min(1).max(20);
 
+export type SceneOutlineShotParsed = z.infer<typeof SceneOutlineShotSchema>;
 export type SceneOutlineItemParsed = z.infer<typeof SceneOutlineItemSchema>;
 export type SceneOutlineListParsed = z.infer<typeof SceneOutlineListSchema>;
 

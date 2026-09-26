@@ -33,6 +33,7 @@ import {
   type EpisodeAssetsBundle,
   type ImageAssetRecord,
   type VideoAssetRecord,
+  type ShotVideoPreview,
   type LocationAsset,
   type Project,
   type PropAsset,
@@ -1854,6 +1855,14 @@ interface ShotFrameState {
   videoGenerating?: boolean;
   /** 视频生成 / 重生的错误信息。 */
   videoError?: string;
+  /**
+   * Round-4 Phase-C 补丁：视频生成"预览"参数（durationSec / resolution / ratio /
+   * modelId / isI2V / blockers / warnings）。在真正调 Ark 之前展示给用户。
+   * shot 首帧图 / 台词 / 动作块任一变化后需要重拉，让预估时长跟上。
+   */
+  preview?: ShotVideoPreview;
+  /** 预览加载中，避免多次并发拉取。 */
+  previewLoading?: boolean;
 }
 
 function SceneShotFrames({
@@ -1896,10 +1905,11 @@ function SceneShotFrames({
         const res = await storyboards.listShots(sceneId);
         if (cancelled) return;
         setShots(res.items);
-        // 并发拉每个 shot 的最新首帧图 + 最新视频，作为缩略图 & 视频预览。
+        // 并发拉每个 shot 的最新首帧图 + 最新视频 + 生成预览，
+        // 一次搞定，避免用户展开 shot 卡后还要再等 preview 单独往返一次。
         const results = await Promise.all(
           res.items.map(async (sh) => {
-            const [image, video] = await Promise.all([
+            const [image, video, preview] = await Promise.all([
               imageAssets.listByShot(sh.id).then(
                 (r) => r.items[0],
                 () => undefined,
@@ -1908,6 +1918,7 @@ function SceneShotFrames({
                 (r) => r.items[0],
                 () => undefined,
               ),
+              videoAssets.previewShotVideo(sh.id).catch(() => undefined),
             ]);
             return [
               sh.id,
@@ -1916,6 +1927,7 @@ function SceneShotFrames({
                   image && image.status !== "failed" ? image.dataUrl : undefined,
                 latest: image,
                 video,
+                preview,
               },
             ] as const;
           }),
@@ -1941,6 +1953,34 @@ function SceneShotFrames({
     };
   }, [expanded, loaded, sceneId]);
 
+  /**
+   * 刷新一个 shot 的视频生成预览（durationSec / resolution / isI2V / blockers…）。
+   *
+   * 调用时机：
+   *   - shot 首帧图刚生成 / 重试成功 → i2v 模式可能从"不可用"翻到"可用"；
+   *   - 视频生成 succeeded → 预览基本不变，但顺手刷新一次不亏。
+   *
+   * 用 `previewLoading` 做并发保护，避免同一 shot 短时间内多次并发拉取。
+   */
+  async function refreshPreview(shotId: string) {
+    setFrames((prev) => ({
+      ...prev,
+      [shotId]: { ...prev[shotId], previewLoading: true },
+    }));
+    try {
+      const preview = await videoAssets.previewShotVideo(shotId);
+      setFrames((prev) => ({
+        ...prev,
+        [shotId]: { ...prev[shotId], preview, previewLoading: false },
+      }));
+    } catch {
+      setFrames((prev) => ({
+        ...prev,
+        [shotId]: { ...prev[shotId], previewLoading: false },
+      }));
+    }
+  }
+
   async function onGenerate(shotId: string) {
     setFrames((prev) => ({
       ...prev,
@@ -1952,6 +1992,8 @@ function SceneShotFrames({
         ...prev,
         [shotId]: { thumbnail: res.dataUrl, generating: false, latest: res.asset },
       }));
+      // 首帧图刚就绪 → 视频生成从 t2v/blocked 状态翻到 i2v/可用，刷新预览。
+      void refreshPreview(shotId);
     } catch (err) {
       const msg =
         err instanceof ApiError ? `${err.code}: ${err.message}` : String(err);
@@ -1991,6 +2033,8 @@ function SceneShotFrames({
           latest: res.asset,
         },
       }));
+      // 重试成功后首帧图恢复可用，视频预览要刷新。
+      void refreshPreview(shotId);
     } catch (err) {
       const msg =
         err instanceof ApiError ? `${err.code}: ${err.message}` : String(err);
@@ -2014,7 +2058,13 @@ function SceneShotFrames({
   }
 
   /**
-   * Round-4 Phase-C：为指定 shot 生成 Seedance 视频（默认 5s / 1080p / 9:16）。
+   * Round-4 Phase-C：为指定 shot 生成 Seedance 视频。
+   *
+   * 参数策略（Round-4 补丁）：
+   *   不再硬编码 durationSec / resolution，而是发**空 body**——后端
+   *   `generateShotVideo` 会用与 `previewShotVideoParams` 完全一致的推导逻辑
+   *   算出最终参数，保证"预览显示什么，实际就生成什么"。
+   *
    * 前置：shot 必须已有一张 status='succeeded' 的首帧图。
    */
   async function onGenerateVideo(shotId: string) {
@@ -2028,9 +2078,6 @@ function SceneShotFrames({
     }));
     try {
       const res = await videoAssets.generateShotVideo(shotId, {
-        durationSec: 5,
-        resolution: "1080p",
-        ratio: "9:16",
         generateAudio: true,
       });
       setFrames((prev) => ({
@@ -2257,6 +2304,106 @@ function SceneShotFrames({
                           </span>
                         ) : null}
                       </div>
+                      {/* Round-4 Phase-C 补丁：视频生成"预览"条。
+                          在点击「🎥 生成本段视频」之前，先展示即将下发到 Ark 的参数：
+                            · 预估时长（含来源：explicit / text_estimate / default）
+                            · 分辨率 + 画幅
+                            · i2v / t2v（是否有首帧图）
+                            · 阻断项（blockers）/ 软提示（warnings）
+                          与后端 `previewShotVideoParams` 完全一致，保证"看到什么，生什么"。 */}
+                      {st.preview && (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            padding: "4px 6px",
+                            borderRadius: 4,
+                            background: st.preview.canGenerate
+                              ? "rgba(59, 130, 246, 0.08)"
+                              : "rgba(239, 68, 68, 0.08)",
+                            border: `1px solid ${
+                              st.preview.canGenerate
+                                ? "rgba(59, 130, 246, 0.25)"
+                                : "rgba(239, 68, 68, 0.25)"
+                            }`,
+                            fontSize: 10,
+                            lineHeight: 1.5,
+                          }}
+                          title={
+                            st.preview.canGenerate
+                              ? "点击「🎥 生成本段视频」后，将按下面参数下发到 Ark。"
+                              : "当前无法生成视频，请先解决 blockers。"
+                          }
+                        >
+                          <div>
+                            <span style={{ fontWeight: 600 }}>预估：</span>
+                            <span
+                              title={
+                                st.preview.durationSource === "shot_text"
+                                  ? `AI 已给本 shot 写好 dialogue ${st.preview.durationDialogueChars}字 + action ${st.preview.durationActionChars}字，按字数精确估算`
+                                  : st.preview.durationSource === "text_estimate"
+                                    ? `按 scene dialogue/action 块 ${st.preview.durationDialogueChars}字 + ${st.preview.durationActionChars}字精确估算`
+                                    : st.preview.durationSource === "scene_summary"
+                                      ? `块表未录入，改用场次 summary + shot.intent（约 shot 均摊 ${st.preview.durationActionChars}字 + 本 shot 特有 ${st.preview.durationDialogueChars}字）估算`
+                                      : st.preview.durationSource === "explicit"
+                                        ? "shot 上显式指定了 durationSec"
+                                        : "无信号，使用默认时长兜底"
+                              }
+                            >
+                              {st.preview.durationSec}s
+                              <span
+                                style={{ opacity: 0.65, marginLeft: 2 }}
+                              >
+                                ({st.preview.durationSource})
+                              </span>
+                            </span>
+                            {" · "}
+                            <span>{st.preview.resolution}</span>
+                            {" · "}
+                            <span>{st.preview.ratio}</span>
+                            {" · "}
+                            <span
+                              title={
+                                st.preview.isI2V
+                                  ? "image-to-video：使用首帧图作为视觉锚点"
+                                  : "text-to-video：无首帧图，纯文本生成"
+                              }
+                            >
+                              {st.preview.isI2V ? "i2v" : "t2v"}
+                            </span>
+                            <span
+                              style={{
+                                opacity: 0.65,
+                                marginLeft: 4,
+                                fontFamily:
+                                  "ui-monospace, SFMono-Regular, Menlo, monospace",
+                              }}
+                              title="Ark 模型 endpoint id"
+                            >
+                              {st.preview.modelId}
+                            </span>
+                          </div>
+                          {st.preview.blockers.length > 0 && (
+                            <div
+                              style={{
+                                marginTop: 2,
+                                color: "#b91c1c",
+                              }}
+                            >
+                              ⛔ {st.preview.blockers.join("；")}
+                            </div>
+                          )}
+                          {st.preview.warnings.length > 0 && (
+                            <div
+                              style={{
+                                marginTop: 2,
+                                color: "#a16207",
+                              }}
+                            >
+                              ⚠️ {st.preview.warnings.join("；")}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div style={{ marginTop: 6, display: "flex", gap: 4, flexWrap: "wrap" }}>
                         <button
                           type="button"
@@ -2295,7 +2442,9 @@ function SceneShotFrames({
                           </button>
                         )}
                         {/* Round-4 Phase-C：视频生成入口。
-                            仅当已有可用首帧图时才亮起，避免用户点空。
+                            按钮启用条件：
+                              1. 已有可用首帧图（缩略图 st.thumbnail 存在）；
+                              2. 预览未阻断（preview 未加载时按老逻辑放行）；
                             成功过一次后按钮改为「🔄 重新生成视频」——同样 append-only。 */}
                         {st.thumbnail && (
                           <button
@@ -2305,10 +2454,21 @@ function SceneShotFrames({
                             disabled={
                               st.videoGenerating ||
                               st.generating ||
-                              st.retrying
+                              st.retrying ||
+                              (st.preview
+                                ? !st.preview.canGenerate
+                                : false)
                             }
                             style={{ fontSize: 11 }}
-                            title="基于本 shot 的首帧图 + 剧情/角色/道具锁，调 Seedance 2.0-mini 生成 5s 视频。约 30-90s。"
+                            title={
+                              st.preview && !st.preview.canGenerate
+                                ? `暂不可生成：${st.preview.blockers.join("；")}`
+                                : st.preview
+                                  ? `将按 ${st.preview.durationSec}s / ${st.preview.resolution} / ${st.preview.ratio} / ${
+                                      st.preview.isI2V ? "i2v" : "t2v"
+                                    } 生成视频（约 30-90s）。`
+                                  : "基于本 shot 的首帧图 + 剧情/角色/道具锁，调 Seedance 2.0-mini 生成视频。约 30-90s。"
+                            }
                           >
                             {st.videoGenerating
                               ? "⏳ 生成视频中"
@@ -2333,15 +2493,102 @@ function SceneShotFrames({
                               background: "#000",
                             }}
                           />
+                          {/* 视频生成参数元数据（0009 migration 起，字段与后端 video_assets 表一一对应）：
+                              分两行展示，避免挤在一起：
+                                第一行：核心播放参数 —— 时长 / 分辨率 / 画幅 / 模式(i2v/t2v) / 状态
+                                第二行：追溯参数     —— 模型 / task / 时长来源（附字数明细） */}
                           <div
                             className="muted"
-                            style={{ fontSize: 10, marginTop: 2 }}
-                            title={
-                              "上游 URL 24h 过期，若过期请点「🔄 重新生成视频」"
-                            }
+                            style={{
+                              fontSize: 10,
+                              marginTop: 3,
+                              lineHeight: 1.5,
+                            }}
                           >
-                            {st.video.durationSec}s · {st.video.resolution} ·{" "}
-                            {st.video.ratio}
+                            <div>
+                              <span title="视频时长（秒），来源见下一行 durationSource">
+                                {st.video.durationSec}s
+                              </span>
+                              {" · "}
+                              <span title="分辨率">
+                                {st.video.resolution}
+                              </span>
+                              {" · "}
+                              <span title="画幅">{st.video.ratio}</span>
+                              {" · "}
+                              <span
+                                title={
+                                  st.video.isI2V
+                                    ? "image-to-video：首帧图作为视觉锚点"
+                                    : "text-to-video：无首帧图"
+                                }
+                              >
+                                {st.video.isI2V ? "i2v" : "t2v"}
+                              </span>
+                              {" · "}
+                              <span title="上游任务状态">
+                                {st.video.status}
+                              </span>
+                            </div>
+                            <div style={{ marginTop: 2 }}>
+                              <span
+                                title="Ark 模型 endpoint id"
+                                style={{ opacity: 0.8 }}
+                              >
+                                {st.video.modelId || "unknown"}
+                              </span>
+                              {st.video.taskId && (
+                                <>
+                                  {" · "}
+                                  <span
+                                    title="Ark 视频异步任务 id（用于排障 / observability）"
+                                    style={{
+                                      opacity: 0.8,
+                                      fontFamily:
+                                        "ui-monospace, SFMono-Regular, Menlo, monospace",
+                                    }}
+                                  >
+                                    task:{st.video.taskId.slice(0, 8)}…
+                                  </span>
+                                </>
+                              )}
+                              {st.video.durationSource && (
+                                <>
+                                  {" · "}
+                                  <span
+                                    title={
+                                      st.video.durationSource ===
+                                      "text_estimate"
+                                        ? `按台词${st.video.durationDialogueChars}字 + 动作${st.video.durationActionChars}字估算`
+                                        : st.video.durationSource ===
+                                            "explicit"
+                                          ? "上游/shot 显式指定"
+                                          : "无信号，使用默认时长兜底"
+                                    }
+                                  >
+                                    {st.video.durationSource}
+                                    {st.video.durationSource ===
+                                      "text_estimate" && (
+                                      <>
+                                        {" ("}
+                                        {st.video.durationDialogueChars}+
+                                        {st.video.durationActionChars}
+                                        {"字)"}
+                                      </>
+                                    )}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                marginTop: 2,
+                                opacity: 0.7,
+                              }}
+                              title="上游 URL 24h 过期，若过期请点「🔄 重新生成视频」"
+                            >
+                              ⚠️ 上游 URL 约 24h 过期
+                            </div>
                           </div>
                         </div>
                       )}

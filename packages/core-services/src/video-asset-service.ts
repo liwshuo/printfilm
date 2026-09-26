@@ -37,6 +37,9 @@ import {
   isProviderReady,
   AiApiKeyError,
   AiUpstreamError,
+  DEFAULT_VIDEO_MODEL_ID,
+  VIDEO_MODEL_I2V_DEFAULT_RESOLUTION,
+  VIDEO_MODEL_DEFAULT_RESOLUTION,
   type VideoOptions,
   type VideoResolution,
   type VideoRatio,
@@ -86,6 +89,43 @@ export interface EpisodeCompositionManifest {
   items: CompositionItem[];
 }
 
+/**
+ * Shot 视频生成的「预生成预览」——在真正调 Ark 之前，把即将下发的参数
+ * 全部展示给用户看，避免"点一下才知道时长/分辨率"的黑盒体验。
+ *
+ * 计算规则与 `generateShotVideo` 完全一致（同一 `estimateShotDuration`
+ * 与 `resolveDefault*Resolution`），因此除非人工在 body 里传 `durationSec`
+ * / `resolution` / `ratio` 覆盖，实际生成结果就是本 preview 展示的值。
+ */
+export interface ShotVideoPreview {
+  shotId: Id;
+  /** 是否可执行生成（false 时前端应禁用生成按钮）。 */
+  canGenerate: boolean;
+  /** 阻断生成的硬性问题（如无首帧图 / 无 provider）。 */
+  blockers: string[];
+  /** 非阻断的软提示（如台词/动作块为空、fallback 到默认时长等）。 */
+  warnings: string[];
+  /** 预估时长（秒）。 */
+  durationSec: number;
+  durationSource:
+    | "explicit"
+    | "shot_text"
+    | "text_estimate"
+    | "scene_summary"
+    | "default";
+  durationDialogueChars: number;
+  durationActionChars: number;
+  /** 分辨率（依据 i2v/t2v 模式选默认）。 */
+  resolution: VideoResolution;
+  ratio: VideoRatio;
+  /** 目标模型 id。 */
+  modelId: string;
+  /** 是否 image-to-video（有可用首帧图即 true）。 */
+  isI2V: boolean;
+  /** 若已有首帧图，一并回填 id 便于前端预览。 */
+  firstFrameImageId?: Id;
+}
+
 const DEFAULT_RESOLUTION: VideoResolution = "1080p";
 const DEFAULT_RATIO: VideoRatio = "9:16";
 const DEFAULT_DURATION_SEC = 5;
@@ -114,6 +154,105 @@ export class VideoAssetService extends BaseService {
   /** Episode 页 CTA 用：拿本集所有 shot 的最新视频。 */
   latestByEpisodeShots(episodeId: Id): VideoAsset[] {
     return this.repos.videoAssets.latestByEpisodeShots(episodeId);
+  }
+
+  /**
+   * 「预生成预览」：不调 Ark，仅根据 shot / scene / 首帧图 / 台词动作块
+   * 计算出**即将下发**的参数（时长、分辨率、画幅、模型、i2v/t2v）。
+   *
+   * 使用场景：Shot 卡片渲染时前端主动拉一次，把预估时长等展示在
+   *「🎥 生成本段视频」按钮上方，让用户在点击前就能看到即将花什么样的钱、
+   * 生成什么规格的视频。
+   *
+   * 与 `generateShotVideo` 共用同一套 duration / resolution 推导逻辑，
+   * 二者结果**保证一致**（除非调用方在 body 里 override）。
+   */
+  previewShotVideoParams(shotId: Id): ShotVideoPreview {
+    const blockers: string[] = [];
+    const warnings: string[] = [];
+
+    if (!isProviderReady()) {
+      blockers.push(
+        "尚未配置 Ark API Key（请先到 /models 页面填入 ARK_API_KEY）",
+      );
+    }
+
+    const shot = this.repos.shots.getById(shotId);
+    if (!shot) {
+      throw missingResource(`分镜不存在：${shotId}`, { shotId });
+    }
+    const scene = this.repos.scenes.getById(shot.sceneId);
+    if (!scene) {
+      throw missingResource(`场次不存在：${shot.sceneId}`, {
+        sceneId: shot.sceneId,
+      });
+    }
+
+    // 首帧图：只有 status='succeeded' 的才算可用
+    const shotImages = this.repos.imageAssets.listByShot(shotId);
+    const firstFrameAsset: ImageAsset | undefined = shotImages.find(
+      (i) => i.status === "succeeded",
+    );
+    const hasFirstFrame = Boolean(firstFrameAsset);
+    if (!hasFirstFrame) {
+      blockers.push("本分镜尚无可用首帧图，请先生成首帧再生成视频");
+    }
+
+    // 台词 / 动作块 —— 参与时长估算
+    const sceneShots = this.repos.shots.listByScene(scene.id);
+    const dialogueBlocks = this.repos.sceneDialogueBlocks.listByScene(scene.id);
+    const actionBlocks = this.repos.sceneActionBlocks.listByScene(scene.id);
+    const durationEstimate = estimateShotDuration({
+      shot,
+      scene,
+      sceneShotCount: sceneShots.length,
+      dialogueBlocks,
+      actionBlocks,
+    });
+
+    if (durationEstimate.source === "default") {
+      warnings.push(
+        "场次 summary / 台词 / 动作 全部为空，无法据文本估算，将使用默认 5s 兜底",
+      );
+    } else if (durationEstimate.source === "scene_summary") {
+      warnings.push(
+        `未录入 dialogue/action 块，改用场次 summary + shot.intent 估算（约 ${durationEstimate.durationSec}s）`,
+      );
+    } else if (durationEstimate.source === "shot_text") {
+      // 方案 A 主路径：shot 自带 dialogue + action，估时最准，不需要 warning。
+    }
+
+    // i2v/t2v 判定：与 generateShotVideo 一致，挂了首帧图即为 i2v
+    const isI2V = hasFirstFrame;
+
+    // 分辨率默认：i2v 走 I2V_DEFAULT，t2v 走 DEFAULT
+    // （与 ark-video.ts / generateShotVideo 保持一致的策略）
+    // 注：config map 声明支持 "4k"，但 VideoOptions.resolution 目前只到 1080p，
+    // 4k 若出现则收敛回 DEFAULT_RESOLUTION。
+    const modelId = DEFAULT_VIDEO_MODEL_ID;
+    const rawDefault =
+      (isI2V
+        ? VIDEO_MODEL_I2V_DEFAULT_RESOLUTION[modelId]
+        : VIDEO_MODEL_DEFAULT_RESOLUTION[modelId]) ?? DEFAULT_RESOLUTION;
+    const resolution: VideoResolution =
+      rawDefault === "4k" ? DEFAULT_RESOLUTION : rawDefault;
+    const ratio: VideoRatio = DEFAULT_RATIO;
+
+    return {
+      shotId,
+      canGenerate: blockers.length === 0,
+      blockers,
+      warnings,
+      durationSec: durationEstimate.durationSec,
+      durationSource: durationEstimate.source,
+      durationDialogueChars: durationEstimate.dialogueChars,
+      durationActionChars: durationEstimate.actionChars,
+      resolution,
+      ratio,
+      modelId,
+      isI2V,
+      firstFrameImageId: firstFrameAsset?.id,
+    };
   }
 
   /**
@@ -251,6 +390,7 @@ export class VideoAssetService extends BaseService {
     const actionBlocks = this.repos.sceneActionBlocks.listByScene(scene.id);
     const durationEstimate = estimateShotDuration({
       shot,
+      scene,
       sceneShotCount: sceneShots.length,
       dialogueBlocks,
       actionBlocks,
@@ -323,6 +463,11 @@ export class VideoAssetService extends BaseService {
         resolution,
         ratio,
         durationSec,
+        durationSource: durationEstimate.source,
+        durationDialogueChars: durationEstimate.dialogueChars,
+        durationActionChars: durationEstimate.actionChars,
+        // 有 firstFrameImageId 即视为 i2v；纯文生视频未来单独走另一入口。
+        isI2V: true,
         videoUrl: "",
         rawResponse: {},
         status: "failed",
@@ -348,6 +493,11 @@ export class VideoAssetService extends BaseService {
       resolution,
       ratio,
       durationSec,
+      durationSource: durationEstimate.source,
+      durationDialogueChars: durationEstimate.dialogueChars,
+      durationActionChars: durationEstimate.actionChars,
+      // 当前入口一定挂首帧图（generateShotFirstFrame 前置），因此固定为 i2v。
+      isI2V: true,
       videoUrl,
       lastFrameUrl,
       taskId,
@@ -546,7 +696,21 @@ function normaliseRaw(raw: unknown): Record<string, unknown> {
 /** estimateShotDuration 的返回结构，同时用于 promptZh + activity 日志。 */
 interface DurationEstimate {
   durationSec: number;
-  source: "explicit" | "text_estimate" | "default";
+  /**
+   * 估算来源：
+   *   - `explicit`           — shot.durationSec 显式指定
+   *   - `shot_text`          — 方案 A：由 shot 自带的 dialogue + action 字数精确估算
+   *   - `text_estimate`      — 由 scene_dialogue_blocks / scene_action_blocks 精确估算
+   *   - `scene_summary`      — dialogue/action 块空，退回 scene.summary + dramaticGoal
+   *                            + conflict + shot.intent 等自由文本估算（AI 当前主流路径）
+   *   - `default`            — 前几者都无内容，走默认时长兜底
+   */
+  source:
+    | "explicit"
+    | "shot_text"
+    | "text_estimate"
+    | "scene_summary"
+    | "default";
   dialogueChars: number;
   actionChars: number;
 }
@@ -555,15 +719,16 @@ interface DurationEstimate {
  * 估算 shot 的目标时长（秒）。优先级：
  *   1. shot.durationSec（人工/上游显式设定）→ 只做 clamp
  *   2. 台词字数 + 动作字数按 scene shot 数均摊 → 换算秒数
- *   3. 兜底 DEFAULT_DURATION_SEC
+ *   3. **scene_summary 兜底**：AI 分场流程只写 scene.summary / dramaticGoal /
+ *      conflict，并不会自动 populate scene_dialogue_blocks / scene_action_blocks，
+ *      所以块表几乎恒空。这里把 scene 自由文本 + shot.intent / performanceNotes
+ *      按 shot 数均摊，避免所有 shot 全都掉进 `default`。
+ *   4. 前三者都无信号 → 兜底 DEFAULT_DURATION_SEC
  * 最终 clamp 到 [MIN_DURATION_SEC, MAX_DURATION_SEC]，避免超出 Ark 支持范围。
- *
- * 简化启发式说明：Shot 层目前没有直接绑定台词/动作块，因此按 scene 级抓取
- * 后按 shot 数均摊。这在 shot 数量差不多的场景里够用；后续如果 Shot 表加
- * dialogueBlockRefs / actionBlockRefs，可无缝切换到精确估算。
  */
 function estimateShotDuration(input: {
   shot: Shot;
+  scene: Scene;
   sceneShotCount: number;
   dialogueBlocks: SceneDialogueBlock[];
   actionBlocks: SceneActionBlock[];
@@ -578,6 +743,23 @@ function estimateShotDuration(input: {
     };
   }
 
+  // -------- 方案 A：shot 自带 dialogue / action 优先 --------
+  // 参考 sd3 / CineGen 的做法：LLM 已在 scene_outline 阶段把 shot 粒度的台词与
+  // 动作直接落在 shots 表，这里字数最贴合本 shot 实际内容，估时最准。
+  const shotDialogueChars = sumEffectiveChars([input.shot.dialogue]);
+  const shotActionChars = sumEffectiveChars([input.shot.action]);
+  const shotTextChars = shotDialogueChars + shotActionChars;
+  if (shotTextChars > 0) {
+    // 1s 起手 + 台词/动作播放 + 1s 收尾。
+    const raw = 1 + shotTextChars / CHARS_PER_SECOND + 1;
+    return {
+      durationSec: clampDurationSec(Math.round(raw)),
+      source: "shot_text",
+      dialogueChars: shotDialogueChars,
+      actionChars: shotActionChars,
+    };
+  }
+
   const totalShots = Math.max(1, input.sceneShotCount);
   const dialogueChars = sumEffectiveChars(
     input.dialogueBlocks.map((b) => b.text),
@@ -587,23 +769,50 @@ function estimateShotDuration(input: {
   );
   const totalChars = dialogueChars + actionChars;
 
-  if (totalChars === 0) {
+  if (totalChars > 0) {
+    const perShotChars = totalChars / totalShots;
+    // 1s 起手镜头 + 台词/动作播放 + 1s 收尾停顿。
+    const raw = 1 + perShotChars / CHARS_PER_SECOND + 1;
     return {
-      durationSec: clampDurationSec(DEFAULT_DURATION_SEC),
-      source: "default",
+      durationSec: clampDurationSec(Math.round(raw)),
+      source: "text_estimate",
       dialogueChars,
       actionChars,
     };
   }
 
-  const perShotChars = totalChars / totalShots;
-  // 1s 起手镜头 + 台词/动作播放 + 1s 收尾停顿。
-  const raw = 1 + perShotChars / CHARS_PER_SECOND + 1;
+  // -------- scene_summary 兜底 --------
+  // 汇总 scene 自由文本 + 本 shot 的 intent / performanceNotes（shot 独有内容
+  // 不参与均摊，直接加在本 shot 头上）。
+  const sceneSummaryChars = sumEffectiveChars([
+    input.scene.summary,
+    input.scene.dramaticGoal,
+    input.scene.conflict,
+  ]);
+  const shotSpecificChars = sumEffectiveChars([
+    input.shot.intent,
+    input.shot.performanceNotes,
+  ]);
+  const summaryPerShot = sceneSummaryChars / totalShots + shotSpecificChars;
+
+  if (summaryPerShot > 0) {
+    const raw = 1 + summaryPerShot / CHARS_PER_SECOND + 1;
+    return {
+      durationSec: clampDurationSec(Math.round(raw)),
+      source: "scene_summary",
+      // 复用两个字段承载"参与估算的字数"，让 UI 也能看到；
+      // dialogue 位记 shot-specific（intent+performanceNotes），
+      // action 位记 shot 均摊的 scene 自由文本 —— 语义近似即可。
+      dialogueChars: shotSpecificChars,
+      actionChars: Math.round(sceneSummaryChars / totalShots),
+    };
+  }
+
   return {
-    durationSec: clampDurationSec(Math.round(raw)),
-    source: "text_estimate",
-    dialogueChars,
-    actionChars,
+    durationSec: clampDurationSec(DEFAULT_DURATION_SEC),
+    source: "default",
+    dialogueChars: 0,
+    actionChars: 0,
   };
 }
 
