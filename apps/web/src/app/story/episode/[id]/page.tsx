@@ -2420,18 +2420,22 @@ function SceneShotFrames({
                         <div
                           style={{
                             marginTop: 6,
-                            padding: "4px 6px",
+                            padding: "6px 8px",
                             borderRadius: 4,
                             background: st.preview.canGenerate
-                              ? "rgba(59, 130, 246, 0.08)"
-                              : "rgba(239, 68, 68, 0.08)",
+                              ? "rgba(59, 130, 246, 0.18)"
+                              : "rgba(239, 68, 68, 0.18)",
                             border: `1px solid ${
                               st.preview.canGenerate
-                                ? "rgba(59, 130, 246, 0.25)"
-                                : "rgba(239, 68, 68, 0.25)"
+                                ? "rgba(59, 130, 246, 0.55)"
+                                : "rgba(239, 68, 68, 0.55)"
                             }`,
-                            fontSize: 10,
-                            lineHeight: 1.5,
+                            // 显式指定深色文字：shot 卡父容器背景是 #fafafa 浅色，
+                            // 而全站页面外壳是深色主题——如果不显式指定 color，
+                            // 文字会从深色主题继承成浅灰字，落在浅蓝浅底上几乎看不见。
+                            color: st.preview.canGenerate ? "#1e3a8a" : "#7f1d1d",
+                            fontSize: 11,
+                            lineHeight: 1.6,
                           }}
                           title={
                             st.preview.canGenerate
@@ -2440,7 +2444,7 @@ function SceneShotFrames({
                           }
                         >
                           <div>
-                            <span style={{ fontWeight: 600 }}>预估：</span>
+                            <span style={{ fontWeight: 700 }}>预估：</span>
                             <span
                               title={
                                 st.preview.durationSource === "shot_text"
@@ -2453,18 +2457,19 @@ function SceneShotFrames({
                                         ? "shot 上显式指定了 durationSec"
                                         : "无信号，使用默认时长兜底"
                               }
+                              style={{ fontWeight: 700 }}
                             >
                               {st.preview.durationSec}s
                               <span
-                                style={{ opacity: 0.65, marginLeft: 2 }}
+                                style={{ opacity: 0.75, marginLeft: 2, fontWeight: 400 }}
                               >
                                 ({st.preview.durationSource})
                               </span>
                             </span>
                             {" · "}
-                            <span>{st.preview.resolution}</span>
+                            <span style={{ fontWeight: 600 }}>{st.preview.resolution}</span>
                             {" · "}
-                            <span>{st.preview.ratio}</span>
+                            <span style={{ fontWeight: 600 }}>{st.preview.ratio}</span>
                             {" · "}
                             <span
                               title={
@@ -2472,20 +2477,22 @@ function SceneShotFrames({
                                   ? "image-to-video：使用首帧图作为视觉锚点"
                                   : "text-to-video：无首帧图，纯文本生成"
                               }
+                              style={{ fontWeight: 600 }}
                             >
                               {st.preview.isI2V ? "i2v" : "t2v"}
                             </span>
-                            <span
-                              style={{
-                                opacity: 0.65,
-                                marginLeft: 4,
-                                fontFamily:
-                                  "ui-monospace, SFMono-Regular, Menlo, monospace",
-                              }}
-                              title="Ark 模型 endpoint id"
-                            >
-                              {st.preview.modelId}
-                            </span>
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 2,
+                              opacity: 0.75,
+                              fontSize: 10,
+                              fontFamily:
+                                "ui-monospace, SFMono-Regular, Menlo, monospace",
+                            }}
+                            title="Ark 模型 endpoint id"
+                          >
+                            {st.preview.modelId}
                           </div>
                           {st.preview.blockers.length > 0 && (
                             <div
