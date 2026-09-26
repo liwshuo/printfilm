@@ -297,6 +297,7 @@ export interface Shot {
   sceneId: string;
   shotNo: number;
   shotType?: string;
+  intent?: string;
   dialogue?: string;
   action?: string;
   version: number;

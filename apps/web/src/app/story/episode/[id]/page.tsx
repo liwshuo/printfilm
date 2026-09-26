@@ -1907,6 +1907,18 @@ function SceneShotFrames({
   // 快速创建第 1 个 shot 的内联状态
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
+  // 首帧图放大预览：点击 shot 缩略图后弹出全屏 modal。
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [lightboxLabel, setLightboxLabel] = useState<string>("");
+  // 按 ESC 关闭 lightbox
+  useEffect(() => {
+    if (!lightboxSrc) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxSrc(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxSrc]);
 
   // 首次展开时懒加载 shots + 缩略图
   useEffect(() => {
@@ -2262,10 +2274,18 @@ function SceneShotFrames({
                         <img
                           src={st.thumbnail}
                           alt={`Shot#${sh.shotNo} 首帧`}
+                          title="点击放大查看"
+                          onClick={() => {
+                            setLightboxSrc(st.thumbnail ?? null);
+                            setLightboxLabel(
+                              `S${sceneNo} · Shot#${sh.shotNo}${sh.shotType ? " · " + sh.shotType : ""}`,
+                            );
+                          }}
                           style={{
                             width: "100%",
                             height: "100%",
                             objectFit: "cover",
+                            cursor: "zoom-in",
                           }}
                         />
                       ) : st.latest?.status === "failed" ? (
@@ -2318,6 +2338,46 @@ function SceneShotFrames({
                           </span>
                         ) : null}
                       </div>
+                      {/* 方案 A：shot 上的 dialogue / action / intent 直接展示，
+                          方便胖哥一眼看出每个 shot 到底在拍什么，不用点开 Studio。 */}
+                      {(sh.action || sh.dialogue || sh.intent) && (
+                        <div
+                          style={{
+                            marginTop: 4,
+                            fontSize: 11,
+                            lineHeight: 1.5,
+                            color: "#374151",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                          }}
+                        >
+                          {sh.action && (
+                            <div title={sh.action}>
+                              <span style={{ opacity: 0.55 }}>🎬 </span>
+                              {sh.action}
+                            </div>
+                          )}
+                          {sh.dialogue && (
+                            <div
+                              title={sh.dialogue}
+                              style={{ whiteSpace: "pre-wrap" }}
+                            >
+                              <span style={{ opacity: 0.55 }}>💬 </span>
+                              {sh.dialogue}
+                            </div>
+                          )}
+                          {sh.intent && (
+                            <div
+                              title={sh.intent}
+                              className="muted"
+                              style={{ fontSize: 10 }}
+                            >
+                              🎯 {sh.intent}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {/* Round-4 Phase-C 补丁：视频生成"预览"条。
                           在点击「🎥 生成本段视频」之前，先展示即将下发到 Ark 的参数：
                             · 预估时长（含来源：explicit / text_estimate / default）
@@ -2667,6 +2727,51 @@ function SceneShotFrames({
               })}
             </div>
           )}
+        </div>
+      )}
+      {lightboxSrc && (
+        <div
+          onClick={() => setLightboxSrc(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.85)",
+            zIndex: 9999,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            cursor: "zoom-out",
+          }}
+        >
+          <div
+            style={{
+              color: "#fff",
+              fontSize: 13,
+              marginBottom: 12,
+              opacity: 0.85,
+            }}
+          >
+            {lightboxLabel}
+            <span style={{ marginLeft: 12, opacity: 0.6 }}>
+              点击背景 / 按 ESC 关闭
+            </span>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt={lightboxLabel}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "min(95vw, 1200px)",
+              maxHeight: "85vh",
+              objectFit: "contain",
+              borderRadius: 6,
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
+              cursor: "default",
+            }}
+          />
         </div>
       )}
     </div>

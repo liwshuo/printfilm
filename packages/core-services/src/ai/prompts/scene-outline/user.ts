@@ -26,7 +26,7 @@ export function buildSceneOutlineUser(ctx: SceneOutlineCtx): string {
     ctx.episodeEndingHook ? `集尾落点：${ctx.episodeEndingHook}` : "",
     formatAssets(ctx.assets),
     `请拆解为 ${ctx.count} 个${unitNoun}骨架。优先复用上面「已有资产」中的角色 / 场景 / 道具（保证跨镜头视觉一致性），不要另起同类新名字。`,
-    "每个 scene 同时输出 `shots` 数组（1~4 个 shot），每个 shot 包含 dialogue（台词，可空）+ action（动作画面），供下游一次性建镜。",
+    "每个 scene 同时输出 `shots` 数组（默认 1 个 shot，仅当明显需要切镜头才 2 个，最多 3 个），每个 shot 包含 dialogue（台词，可空）+ action（动作画面），供下游一次性建镜。",
   ].filter(Boolean);
   return lines.join("\n");
 }
