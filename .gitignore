@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Next.js
+.next/
+next-env.d.ts
+
+# Coverage
+coverage/
+
+# Local runtime data (see repo-structure §15)
+data/sqlite/
+data/projects/
+data/artifacts/
+data/cache/
+data/exports/
+data/logs/
+.runtime/
+
+# Local SQLite user data (project/scene/shot payloads — NEVER push to remote)
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite
+*.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log

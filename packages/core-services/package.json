@@ -1,0 +1,22 @@
+{
+  "name": "@dramaflow/core-services",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Story / Asset / Storyboard core services. Business orchestration over repository ports: optimistic-lock pass-through, state transitions, derived-status rollups, and validation gates. Depends on @dramaflow/domain only — never on SQLite (repo-structure §6).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@dramaflow/domain": "workspace:*",
+    "zod": "^3.23.8"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "dramaflow-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DramaFlow Studio (printfilm-next) — local-first AI short-drama production workbench. V1 starts from schema + types + contracts.",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build --dry --force && tsc -b --clean && tsc --build",
+    "check": "tsc --build",
+    "clean": "tsc --build --clean",
+    "smoke:repositories": "node scripts/smoke-repositories.mjs",
+    "smoke:core-services": "node scripts/smoke-core-services.mjs",
+    "smoke:desktop-server": "node scripts/smoke-desktop-server.mjs",
+    "smoke": "pnpm run build && pnpm run smoke:repositories && pnpm run smoke:core-services && pnpm run smoke:desktop-server",
+    "test": "pnpm run smoke"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.9",
+    "@types/node": "^20.12.7",
+    "typescript": "^5.4.5"
+  }
+}

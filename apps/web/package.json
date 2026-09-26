@@ -1,0 +1,24 @@
+{
+  "name": "@dramaflow/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DramaFlow Studio local workbench UI (Next.js App Router). Talks to @dramaflow/desktop-server over /api.",
+  "scripts": {
+    "dev": "next dev -p 5173",
+    "build": "next build",
+    "start": "next start -p 5173",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dramaflow/domain": "workspace:*",
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "typescript": "5.4.5"
+  }
+}

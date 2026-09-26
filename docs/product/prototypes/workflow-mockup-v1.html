@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>printfilm-next 流式工作台原型 · v1</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --panel: #14171f;
+    --panel-2: #1a1e28;
+    --border: #262b36;
+    --border-strong: #333a4a;
+    --text: #e6e8ee;
+    --text-muted: #8a92a6;
+    --accent: #6d8dff;
+    --accent-bg: #1e2438;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --gray: #52586a;
+    --red: #f87171;
+    --note-bg: rgba(253, 186, 116, 0.08);
+    --note-border: #fdba74;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .shell {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 100vh;
+  }
+  header.topbar {
+    grid-column: 1 / 3;
+    height: 52px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    font-size: 13px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .brand { font-weight: 600; font-size: 15px; letter-spacing: 0.3px; }
+  .brand .accent { color: var(--accent); }
+  .topbar .divider { color: var(--border-strong); }
+  .topbar .project-name { color: var(--text); font-weight: 500; }
+  .topbar .project-meta { color: var(--text-muted); font-size: 12px; }
+  .topbar .spacer { flex: 1; }
+  .topbar select, .topbar .btn-mini {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  /* ===== 左侧阶段进度栏 · P0-1 ===== */
+  aside.stages {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 52px;
+    align-self: start;
+    height: calc(100vh - 52px);
+    overflow-y: auto;
+  }
+  .stages .stages-title {
+    padding: 0 20px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .stage-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .stage-item:hover { background: rgba(255,255,255,0.02); }
+  .stage-item.active {
+    background: var(--accent-bg);
+    border-left-color: var(--accent);
+  }
+  .stage-item.completed { opacity: 0.9; }
+  .stage-item.locked { opacity: 0.45; cursor: not-allowed; }
+  .stage-dot {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+    font-weight: 600;
+  }
+  .stage-dot.done { background: var(--green); color: #052411; }
+  .stage-dot.active { background: var(--accent); color: white; }
+  .stage-dot.pending { background: transparent; border: 1.5px solid var(--gray); color: var(--gray); }
+  .stage-text .stage-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+  .stage-text .stage-hint { font-size: 11px; color: var(--text-muted); }
+  .stage-item.active .stage-text .stage-name { color: var(--accent); }
+  .stages .current-project-card {
+    margin: 20px 16px 0;
+    padding: 12px;
+    background: var(--panel-2);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .stages .current-project-card .cp-label { color: var(--text-muted); font-size: 10px; letter-spacing: 1px; margin-bottom: 6px; text-transform: uppercase; }
+  .stages .current-project-card .cp-name { font-weight: 600; margin-bottom: 4px; }
+  .stages .current-project-card .cp-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tag {
+    display: inline-block;
+    background: var(--accent-bg);
+    color: var(--accent);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .tag.green { background: rgba(74,222,128,0.12); color: var(--green); }
+  .tag.gray { background: rgba(138,146,166,0.15); color: var(--text-muted); }
+  /* ===== 主内容区 ===== */
+  main.workspace {
+    padding: 24px 32px 64px;
+    max-width: 1180px;
+  }
+  .breadcrumb { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .breadcrumb .cur { color: var(--text); }
+  main h1.page-title { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  main .page-subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+  /* ===== AI Pre-fill 面板 · P0-2 ===== */
+  .prefill-card {
+    background: linear-gradient(135deg, rgba(109,141,255,0.06), rgba(109,141,255,0.02));
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .prefill-card .prefill-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .prefill-card .prefill-desc { color: var(--text-muted); font-size: 12px; margin-bottom: 14px; }
+  .prefill-inputs { display: grid; grid-template-columns: 1fr 220px; gap: 12px; align-items: stretch; }
+  .prefill-inputs textarea {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+    min-height: 84px;
+  }
+  .prefill-inputs textarea::placeholder { color: var(--text-muted); }
+  .prefill-side { display: flex; flex-direction: column; gap: 8px; }
+  .prefill-side select {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .prefill-side .btn-primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: auto;
+  }
+  .prefill-side .btn-primary:hover { background: #7c99ff; }
+  .prefill-hints {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 10px;
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .prefill-hints span::before { content: '💡 '; }
+  /* ===== 分集卡片流 · P0-3 ===== */
+  .cards-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-bottom: 12px;
+  }
+  .cards-header h2 { font-size: 17px; margin: 0; font-weight: 600; }
+  .cards-header .cards-desc { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+  .cards-actions { display: flex; gap: 8px; }
+  .btn-secondary {
+    background: var(--panel-2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .ep-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex; flex-direction: column;
+    transition: border 0.15s, transform 0.15s;
+    position: relative;
+  }
+  .ep-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .ep-card .ep-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .ep-card .ep-no { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+  .ep-card .ep-menu { color: var(--text-muted); font-size: 16px; cursor: pointer; padding: 0 4px; }
+  .ep-card .ep-title { font-size: 14px; font-weight: 600; margin: 2px 0 4px; }
+  .ep-card .ep-summary { font-size: 12px; color: var(--text-muted); flex: 1; margin-bottom: 12px; line-height: 1.5; }
+  .ep-status-lights { display: flex; gap: 4px; margin-bottom: 12px; align-items: center; }
+  .ep-status-lights .light {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: transparent; border: 1.5px solid var(--gray);
+  }
+  .ep-status-lights .light.done { background: var(--green); border-color: var(--green); }
+  .ep-status-lights .light.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(109,141,255,0.2); }
+  .ep-status-lights .status-label { font-size: 10px; color: var(--text-muted); margin-left: 6px; letter-spacing: 0.3px; }
+  .ep-cta {
+    display: block; text-align: center;
+    background: var(--accent);
+    color: white;
+    padding: 8px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .ep-cta:hover { background: #7c99ff; }
+  .ep-cta.secondary {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+  }
+  .ep-cta.secondary:hover { background: var(--panel-2); }
+  /* ===== 设计标注 · 悬浮说明 ===== */
+  .anno {
+    position: relative;
+    outline: 1.5px dashed var(--note-border);
+    outline-offset: 6px;
+    border-radius: 4px;
+  }
+  .anno::after {
+    content: attr(data-anno);
+    position: absolute;
+    top: -22px;
+    left: -6px;
+    background: var(--note-border);
+    color: #1a0f00;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    z-index: 5;
+  }
+  /* ===== 底部说明区 ===== */
+  .legend-block {
+    margin-top: 40px;
+    padding: 24px;
+    background: var(--note-bg);
+    border: 1px solid rgba(253, 186, 116, 0.35);
+    border-radius: 10px;
+  }
+  .legend-block h3 { margin: 0 0 12px; font-size: 15px; color: var(--note-border); }
+  .legend-block .legend-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .legend-item { }
+  .legend-item .li-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .legend-item .li-body { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+  .legend-item .li-title .li-tag {
+    display: inline-block;
+    background: var(--note-border);
+    color: #1a0f00;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .footer-note {
+    margin-top: 20px;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <span class="brand">printfilm<span class="accent">-next</span> Studio</span>
+    <span class="divider">·</span>
+    <select><option>成语故事系列 · 第一辑</option><option>都市短剧 · 春江花月夜</option></select>
+    <span class="project-meta">选集剧 · 教育小故事 · 中国水墨童趣</span>
+    <span class="spacer"></span>
+    <span class="btn-mini">⚙️ 项目设置</span>
+    <span class="btn-mini">👤 lishuo.oo</span>
+  </header>
+
+  <aside class="stages anno" data-anno="P0-1 · 阶段进度栏（左侧固定 260px）">
+    <div class="stages-title">工作流阶段</div>
+
+    <div class="stage-item completed">
+      <div class="stage-dot done">✓</div>
+      <div class="stage-text">
+        <div class="stage-name">1. 项目设定</div>
+        <div class="stage-hint">类型 / 内容形态 / 视觉风格</div>
+      </div>
+    </div>
+
+    <div class="stage-item completed">
+      <div class="stage-dot done">✓</div>
+      <div class="stage-text">
+        <div class="stage-name">2. 故事设定</div>
+        <div class="stage-hint">系列设定：风格 / 受众 / 主题 / 背景</div>
+      </div>
+    </div>
+
+    <div class="stage-item active">
+      <div class="stage-dot active">3</div>
+      <div class="stage-text">
+        <div class="stage-name">3. 分集大纲</div>
+        <div class="stage-hint">当前 · 每集 = 一个成语</div>
+      </div>
+    </div>
+
+    <div class="stage-item locked">
+      <div class="stage-dot pending">4</div>
+      <div class="stage-text">
+        <div class="stage-name">4. 分场关键帧</div>
+        <div class="stage-hint">场次 · Start/End Frame</div>
+      </div>
+    </div>
+
+    <div class="stage-item locked">
+      <div class="stage-dot pending">5</div>
+      <div class="stage-text">
+        <div class="stage-name">5. 提示词生成</div>
+        <div class="stage-hint">image / video prompt</div>
+      </div>
+    </div>
+
+    <div class="stage-item locked">
+      <div class="stage-dot pending">6</div>
+      <div class="stage-text">
+        <div class="stage-name">6. 拼接导出</div>
+        <div class="stage-hint">时间轴 · MP4 / 关键帧</div>
+      </div>
+    </div>
+
+    <div class="current-project-card">
+      <div class="cp-label">当前项目</div>
+      <div class="cp-name">成语故事系列 · 第一辑</div>
+      <div class="cp-tags">
+        <span class="tag">选集剧</span>
+        <span class="tag green">教育小故事</span>
+        <span class="tag gray">水墨童趣</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="workspace">
+    <div class="breadcrumb">项目 › <span class="cur">分集大纲</span></div>
+    <h1 class="page-title">分集大纲 · 每集一个成语</h1>
+    <p class="page-subtitle">系列设定完成后，为每集生成剧本骨架。每集独立故事，围绕一个成语 / 寓言核心价值。</p>
+
+    <!-- ===== P0-2 · AI Pre-fill 面板 ===== -->
+    <div class="prefill-card anno" data-anno="P0-2 · AI 主动 pre-fill · 一句 idea → 全字段草案">
+      <div class="prefill-title">✨ 从 idea 一键生成分集大纲</div>
+      <div class="prefill-desc">给一个方向或一批成语，AI 会一次性生成本辑所有集的标题 / 摘要 / 核心寓意 / 主要角色。你只需在下方卡片流里微调 / 换风格 / 补齐。</div>
+      <div class="prefill-inputs">
+        <textarea placeholder="示例：本辑聚焦「坚持与变通」类成语，8 集，古代乡村背景，主角是一位懂事又爱思考的小书童。也可以直接粘一批成语列表：守株待兔、揠苗助长、刻舟求剑、朝三暮四……"></textarea>
+        <div class="prefill-side">
+          <select><option>集数：8 集</option><option>集数：6 集</option><option>集数：10 集</option></select>
+          <select><option>时长：单集 3-5 分钟</option><option>时长：单集 5-8 分钟</option></select>
+          <button class="btn-primary">✨ 一键生成 8 集</button>
+        </div>
+      </div>
+      <div class="prefill-hints">
+        <span>不写 idea 也能点，会用系列设定 + 内容形态默认预设兜底</span>
+        <span>生成后每张卡片都可以「🔄 重生成 / 🎲 换风格 / 🩹 补齐字段」</span>
+      </div>
+    </div>
+
+    <!-- ===== P0-3 · 分集卡片流 ===== -->
+    <div class="cards-header">
+      <div>
+        <h2 class="anno" data-anno="P0-3 · 分集卡片流 · 状态灯 + 动态 CTA">📚 分集卡片</h2>
+        <div class="cards-desc">已生成 5 / 8 集 · 点卡片右上 <code>···</code> 复用重生成 / 换风格 / 删除</div>
+      </div>
+      <div class="cards-actions">
+        <button class="btn-secondary">+ 手动加一集</button>
+        <button class="btn-secondary">🩹 一键补齐剩余 3 集</button>
+      </div>
+    </div>
+
+    <div class="cards-grid">
+      <!-- 卡 1: 剧本已生成，可去分场 -->
+      <div class="ep-card">
+        <div class="ep-header">
+          <span class="ep-no">EP 01 · 守株待兔</span>
+          <span class="ep-menu">⋯</span>
+        </div>
+        <div class="ep-title">田头的兔子</div>
+        <div class="ep-summary">书童小满看到邻家老农意外撞到一只兔子后天天守着树桩不干活，试着劝说，老农终于醒悟。核心寓意：意外之得不可持续，只有勤劳才是根本。</div>
+        <div class="ep-status-lights">
+          <span class="light done" title="剧本已生成"></span>
+          <span class="light active" title="场次可开始"></span>
+          <span class="light" title="关键帧"></span>
+          <span class="light" title="视频"></span>
+          <span class="light" title="导出"></span>
+          <span class="status-label">剧本 ✓ · 待拆场次</span>
+        </div>
+        <a class="ep-cta" href="#">进入场次 →</a>
+      </div>
+
+      <!-- 卡 2: 场次已拆，可去关键帧 -->
+      <div class="ep-card">
+        <div class="ep-header">
+          <span class="ep-no">EP 02 · 揠苗助长</span>
+          <span class="ep-menu">⋯</span>
+        </div>
+        <div class="ep-title">拔高的稻子</div>
+        <div class="ep-summary">小满看到邻村急脾气的农夫因为想让稻子长得更快，去田里一根根拔高稻苗，第二天全枯了。核心寓意：违背规律的努力反而毁事。</div>
+        <div class="ep-status-lights">
+          <span class="light done"></span>
+          <span class="light done"></span>
+          <span class="light active"></span>
+          <span class="light"></span>
+          <span class="light"></span>
+          <span class="status-label">场次 ✓ · 待出关键帧</span>
+        </div>
+        <a class="ep-cta" href="#">进入关键帧 →</a>
+      </div>
+
+      <!-- 卡 3: 关键帧已出，可去生视频 -->
+      <div class="ep-card">
+        <div class="ep-header">
+          <span class="ep-no">EP 03 · 刻舟求剑</span>
+          <span class="ep-menu">⋯</span>
+        </div>
+        <div class="ep-title">江上的记号</div>
+        <div class="ep-summary">小满随家人乘船，一位客商剑掉江中，客商在船舷刻记号说等会到岸再从记号下水找剑。孩童指出错处。核心寓意：世界在变，方法要跟着变。</div>
+        <div class="ep-status-lights">
+          <span class="light done"></span>
+          <span class="light done"></span>
+          <span class="light done"></span>
+          <span class="light active"></span>
+          <span class="light"></span>
+          <span class="status-label">关键帧 ✓ · 待生成视频</span>
+        </div>
+        <a class="ep-cta" href="#">生成本集视频 →</a>
+      </div>
+
+      <!-- 卡 4: 空白，仅有标题（AI 只给了骨架） -->
+      <div class="ep-card">
+        <div class="ep-header">
+          <span class="ep-no">EP 04 · 朝三暮四</span>
+          <span class="ep-menu">⋯</span>
+        </div>
+        <div class="ep-title" style="color: var(--text-muted); font-weight: 500;">（仅生成标题占位，待补齐）</div>
+        <div class="ep-summary" style="opacity: 0.55;">系列设定生成时 AI 给出题目占位，摘要 / 角色 / 寓意都还没生成。</div>
+        <div class="ep-status-lights">
+          <span class="light active"></span>
+          <span class="light"></span>
+          <span class="light"></span>
+          <span class="light"></span>
+          <span class="light"></span>
+          <span class="status-label">仅占位 · 待补齐</span>
+        </div>
+        <a class="ep-cta" href="#">🩹 一键补齐本集</a>
+      </div>
+
+      <!-- 卡 5: 已导出 -->
+      <div class="ep-card">
+        <div class="ep-header">
+          <span class="ep-no">EP 05 · 愚公移山</span>
+          <span class="ep-menu">⋯</span>
+        </div>
+        <div class="ep-title">山那头的市集</div>
+        <div class="ep-summary">村外两座大山挡了通往市集的路，愚公与家人日日搬石头。邻里嘲笑，愚公自有他的道理：山不加增，子子孙孙无穷。</div>
+        <div class="ep-status-lights">
+          <span class="light done"></span>
+          <span class="light done"></span>
+          <span class="light done"></span>
+          <span class="light done"></span>
+          <span class="light done"></span>
+          <span class="status-label" style="color: var(--green);">✓ 已导出 MP4</span>
+        </div>
+        <a class="ep-cta secondary" href="#">查看本集时间轴</a>
+      </div>
+
+      <!-- 卡 6: 空 slot，占位「+ 加一集」 -->
+      <div class="ep-card" style="border-style: dashed; opacity: 0.7; justify-content: center; align-items: center; min-height: 180px;">
+        <div style="text-align: center; color: var(--text-muted);">
+          <div style="font-size: 24px; margin-bottom: 8px;">＋</div>
+          <div style="font-size: 12px;">手动添加一集 / AI 补齐</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 底部设计标注 · 快速索引 ===== -->
+    <div class="legend-block">
+      <h3>🎨 设计意图快速索引</h3>
+      <div class="legend-grid">
+        <div class="legend-item">
+          <div class="li-title"><span class="li-tag">P0-1</span>阶段进度栏</div>
+          <div class="li-body">
+            左侧 260px 固定，6 步线性阶段（项目设定 → 导出）。每步一个状态灯：<b>✓ 完成 / 数字 · 进行中 / 灰 · 未解锁</b>。
+            阶段之间阻塞（前置未完不能跳），阶段内自由。参考 huobao-drama + CineGen Phase 01-04。
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="li-title"><span class="li-tag">P0-2</span>AI Pre-fill 面板</div>
+          <div class="li-body">
+            主内容区顶部大面板，一句 idea + 少量下拉，一键生成全部分集草案。参考 huobao 一键改写 + drama-skills 主动填充。
+            每张卡片都可 <b>🔄 重生成 / 🎲 换风格 / 🩹 补齐</b>，不需要用户懂 prompt。
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="li-title"><span class="li-tag">P0-3</span>分集卡片流</div>
+          <div class="li-body">
+            每集一张卡：集号 + 标题 + 摘要 + <b>5 灯状态条</b>（剧本 / 场次 / 关键帧 / 视频 / 导出）+ 动态 CTA（按当前状态切）。
+            参考 huobao 剧集列表 + CineGen 网格分镜表。副菜单 <code>⋯</code> = 重生成 / 换风格 / 删除。
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="li-title"><span class="li-tag">交互</span>动态 CTA</div>
+          <div class="li-body">
+            每张卡的主按钮文案随当前状态变化：<br/>
+            剧本 ✓ 场次 ○ → <b>进入场次 →</b> <br/>
+            场次 ✓ 关键帧 ○ → <b>进入关键帧 →</b><br/>
+            关键帧 ✓ 视频 ○ → <b>生成本集视频 →</b><br/>
+            全绿 → <b>查看本集时间轴</b>
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="li-title"><span class="li-tag">交互</span>顶部项目切换</div>
+          <div class="li-body">
+            顶栏项目选择器 + 内容形态徽章。切项目后左侧阶段进度自动同步该项目的状态。
+            右上有 ⚙️ 项目设置（含变更内容形态、导入原文、删除项目等）。
+          </div>
+        </div>
+        <div class="legend-item">
+          <div class="li-title"><span class="li-tag">未展示</span>右侧上下文（可选）</div>
+          <div class="li-body">
+            后续可在主区右侧加一个 300px 「引用参考」栏，展示当前操作的锁字符串 / 参考图 / REF-PLAN-IMG 状态。
+            当前原型未展示，将在 P1-5「连续性锁 + 衣橱系统」中落地。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Prototype v1 · 作者：李硕 · 2026-09-23 · 静态线框图，仅用于交互对齐 · 参考调研报告《workflow-benchmark-4-projects.md》
+    </div>
+  </main>
+</div>
+</body>
+</html>

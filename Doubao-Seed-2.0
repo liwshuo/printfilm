@@ -1,0 +1,1290 @@
+数分钟内完成你的首次 API 调用。
+
+
+<columns>
+<columnsItem zoneid="z0hEdjMGiq">
+
+
+<card mode="container" href="https://ark.volcengine.com/region:cn-beijing/docs/82379/2272060?lang=zh" >
+
+**快速入门(新手版)** 
+
+为零基础用户设计的快速入门
+
+</card>
+
+
+
+</columnsItem>
+<columnsItem zoneid="IyeHeCZoyR">
+
+
+<card mode="container" href="https://ark.volcengine.com/region:cn-beijing/docs/82379/2289964?lang=zh" >
+
+**方舟文档 MCP**
+
+极简配置，协同 AI 完成大模型开发
+
+</card>
+
+
+
+</columnsItem>
+<columnsItem zoneid="pYYdZvaYHo">
+
+
+<card mode="container" href="https://ark.volcengine.com/region:cn-beijing/docs/82379/2373738?lang=zh" >
+
+**Agent Plan**
+
+一站式智能体开发方案，快速搭建专属 AI Agent
+
+</card>
+
+
+
+</columnsItem>
+</columns>
+
+
+<span id="da0e9d90"></span>
+# 1 获取并配置 API Key
+
+
+1. 获取 API Key：在控制台左下角选择 [API Key 管理](https://ark.volcengine.com/region:cn-beijing/apiKey)，创建你的 API Key。
+
+2. 配置环境变量：在终端中运行下面命令（替换`your_api_key_here` 为你的方舟API Key），配置 API Key 到环境变量。
+
+
+配置持久化环境变量方法参见 [环境变量配置指南](https://ark.volcengine.com/region:cn-beijing/docs/82379/1820161?lang=zh)。
+
+
+<Tabs>
+<Tab zoneid="VrUheRfDSQ" title="MacOS">
+<TabTitle>MacOS</TabTitle>
+
+```Bash
+export ARK_API_KEY="your_api_key_here"
+```
+
+
+
+</Tab>
+<Tab zoneid="l90s7GAlf6" title="Linux">
+<TabTitle>Linux</TabTitle>
+
+```Bash
+export ARK_API_KEY="your_api_key_here"
+```
+
+
+
+</Tab>
+<Tab zoneid="el07H5sLy3" title="Windows_CMD">
+<TabTitle>Windows_CMD</TabTitle>
+
+```Bash
+setx ARK_API_KEY "your_api_key_here"
+```
+
+
+
+</Tab>
+<Tab zoneid="lsEfN6bW9f" title="Windows_PowerShell">
+<TabTitle>Windows_PowerShell</TabTitle>
+
+```PowerShell
+$env:ARK_API_KEY = "your_api_key_here"
+```
+
+
+
+</Tab>
+</Tabs>
+
+
+<span id="1008bfdb"></span>
+# 2 开通模型服务
+
+访问 [开通管理页面](https://ark.volcengine.com/region:cn-beijing/openManagement) 开通模型服务。
+
+<span id="b30fecf4"></span>
+# 3 安装 SDK
+
+安装方舟官方 SDK 或第三方 SDK。
+
+
+<Tabs>
+<Tab zoneid="hl56KYOIQF" title="Python">
+<TabTitle>Python</TabTitle>
+
+> 运行环境中需安装 [Python](https://www.python.org/downloads/) 版本 3.8 或以上。
+
+
+* 安装方舟官方 SDK：
+
+   ```Bash
+   python -m pip install --upgrade arkruntime
+   ```
+   
+
+* 安装 OpenAI SDK：
+
+   ```Bash
+   pip install openai
+   ```
+   
+
+
+</Tab>
+<Tab zoneid="NQyg1RcVlr" title="Go">
+<TabTitle>Go</TabTitle>
+
+> 环境中安装 [Go](https://golang.google.cn/doc/install) 版本 1.20 或以上。
+
+
+运行以下命令安装方舟官方 Go SDK：
+
+```Bash
+go get github.com/volcengine/ark-runtime-go@latest
+```
+
+
+在代码中引入：
+
+```Go
+import "github.com/volcengine/ark-runtime-go/arkruntime"
+```
+
+
+
+</Tab>
+<Tab zoneid="DCeDxlXB9C" title="Java">
+<TabTitle>Java</TabTitle>
+
+> 环境中安装 [Java](https://www.java.com/en/download/help/index_installing.html) 版本 1.8 或以上。
+
+
+在项目的`pom.xml`文件中添加以下依赖配置。
+
+```XML
+<dependency>
+  <groupId>com.volcengine</groupId>
+  <artifactId>ark-runtime</artifactId>
+  <version><VERSION></version>
+</dependency>
+```
+
+
+<div data-tips="true" data-tips-type="tip" data-tips-is-title="true">说明</div>
+
+
+<div data-tips="true" data-tips-type="tip">请从 <a href="https://central.sonatype.com/artifact/com.volcengine/ark-runtime">Maven Central</a> 获取最新稳定版本，并将 <code><VERSION></code> 替换为该版本号。</div>
+
+
+
+</Tab>
+</Tabs>
+
+
+<span id="f97e77a7"></span>
+# 4 发起 API 请求
+
+以下按输入输出类别列举的典型任务，选择任意示例代码体验如何通过 API 调用及体验大模型及方舟平台能力。
+
+<span id="b25b812a"></span>
+## 文本生成
+
+传入文本类信息给模型，进行问答、分析、改写、摘要、编程、翻译等任务，并返回文本结果。
+
+
+<span aceTableMode="list" aceTableWidth="4,4"></span>
+|输入 |输出预览 |
+|---|---|
+|Hello |* 思考：Got it, let's see. The user said "hello". I need to respond in a friendly and welcoming way. Since the system prompt mentions a professional but friendly tone, I should keep it natural. Maybe something like "Hello! How can I assist you today?" That's simple, polite, and open\-ended to encourage the user to share what they need help with.<br><br>* 回答：Hello! How can I assist you today? Whether you have a question, need help with something specific, or just want to chat, feel free to let me know. 😊 |
+
+
+
+<Tabs>
+<Tab zoneid="JeUfxWuj7H" title="Python">
+<TabTitle>Python</TabTitle>
+
+```Python
+import os
+from arkruntime import Ark
+
+client = Ark(
+    base_url='https://ark.cn-beijing.volces.com/api/v3',
+    api_key=os.getenv('ARK_API_KEY'),
+)
+
+response = client.responses.create(
+    model="doubao-seed-2-1-pro-260628",
+    input="hello", # Replace with your prompt
+    # thinking={"type": "disabled"}, #  Manually disable deep thinking
+)
+
+for item in response.output:
+    if item.type == "reasoning":
+        for summary in item.summary:
+            if summary.type == "summary_text":
+                print(f"思考：{summary.text}")
+    elif item.type == "message":
+        for content in item.content:
+            if content.type == "output_text":
+                print(f"回答：{content.text}")
+```
+
+
+
+</Tab>
+<Tab zoneid="QGQHXDL1BZ" title="Curl">
+<TabTitle>Curl</TabTitle>
+
+```Bash
+curl https://ark.cn-beijing.volces.com/api/v3/responses \
+  -H "Authorization: Bearer $ARK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+      "model": "doubao-seed-2-1-pro-260628",
+      "input": "hello"
+  }'
+```
+
+
+
+* 关闭深度思考：配置 `"thinking":{"type": "disabled"}`。
+
+
+</Tab>
+<Tab zoneid="S176OTxWXt" title="Go">
+<TabTitle>Go</TabTitle>
+
+```Go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "github.com/volcengine/ark-runtime-go/arkruntime"
+    "github.com/volcengine/ark-runtime-go/arkruntime/model/responses"
+)
+
+func main() {
+    client := arkruntime.NewClientWithApiKey(
+        // Get API Key：https://ark.volcengine.com/region:cn-beijing/apikey
+        os.Getenv("ARK_API_KEY"),
+        arkruntime.WithBaseUrl("https://ark.cn-beijing.volces.com/api/v3"),
+    )
+    ctx := context.Background()
+
+    resp, err := client.CreateResponses(ctx, &responses.ResponsesRequest{
+        Model: "doubao-seed-2-1-pro-260628",
+        Input: responses.NewStringResponsesInput("hello"), // Replace with your prompt
+        // Thinking: responses.NewOptThinking(responses.Thinking{Type: responses.NewOptThinkingMode(responses.ThinkingModeDisabled)}), // Manually disable deep thinking
+    })
+    if err != nil {
+        fmt.Printf("response error: %v\n", err)
+        return
+    }
+    fmt.Println(resp)
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="a2Uwtgw7z3" title="Java">
+<TabTitle>Java</TabTitle>
+
+```Java
+package com.ark.sample;
+
+import com.volcengine.ark.runtime.service.ArkService;
+import com.volcengine.ark.runtime.models.responses.*;
+public class demo {
+    public static void main(String[] args) {
+        String apiKey = System.getenv("ARK_API_KEY");
+        // The base URL for model invocation
+        ArkService arkService = ArkService.builder().apiKey(apiKey)
+                .baseUrl("https://ark.cn-beijing.volces.com/api/v3")
+                .build();
+
+        ResponsesRequest request = ResponsesRequest.builder()
+                .model("doubao-seed-2-1-pro-260628")
+                .input(ResponsesInput.ofString("hello")) // Replace with your prompt
+                // .thinking(Thinking.builder().type(ThinkingMode.DISABLED).build()) //  Manually disable deep thinking
+                .build();
+
+        Response resp = arkService.createResponse(request);
+        System.out.println(resp);
+
+        arkService.shutdownExecutor();
+    }
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="gQ5AYAjI9a" title="OpenAI SDK">
+<TabTitle>OpenAI SDK</TabTitle>
+
+```Python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url='https://ark.cn-beijing.volces.com/api/v3',
+    api_key=os.getenv('ARK_API_KEY'),
+)
+
+response = client.responses.create(
+    model="doubao-seed-2-1-pro-260628",
+    input="hello", # Replace with your prompt
+    extra_body={
+        # "thinking": {"type": "disabled"}, #  Manually disable deep thinking
+    },
+)
+
+for item in response.output:
+    if item.type == "reasoning":
+        for summary in item.summary:
+            if summary.type == "summary_text":
+                print(f"思考：{summary.text}")
+    elif item.type == "message":
+        for content in item.content:
+            if content.type == "output_text":
+                print(f"回答：{content.text}")
+```
+
+
+
+</Tab>
+</Tabs>
+
+
+
+* [文本生成](https://ark.volcengine.com/region:cn-beijing/docs/82379/1399009?lang=zh)：文本生成使用指南。
+
+* [深度思考](https://ark.volcengine.com/region:cn-beijing/docs/82379/1956279?lang=zh)：深度思考能力使用指南。
+
+* [迁移至 Responses API](https://ark.volcengine.com/region:cn-beijing/docs/82379/1585128?lang=zh)：新用户推荐，更简洁的上下文管理能力、强大的工具调用能力。
+
+* [Chat API](https://ark.volcengine.com/region:cn-beijing/docs/82379/1494384?lang=zh)：存量业务迭代推荐，广泛使用的 API。
+
+
+<span id="efbfe823"></span>
+## 多模态理解
+
+传入图片、视频、PDF文件给模型，进行分析、内容审核、问答、视觉定位等基于多模态理解相关任务，并返回文本结果。
+
+
+<span aceTableMode="list" aceTableWidth="4,4"></span>
+|输入 |输出预览 |
+|---|---|
+|<span>![图片](https://p9-arcosite.byteimg.com/tos-cn-i-goo7wpa0wc/a31c2edfbe844461a43f5e8f74fbcce4~tplv-goo7wpa0wc-image.image) </span><br><br>> 支持输入图片的模型系列是哪个？ |* 思考：用户现在需要找支持输入图片的模型系列，看表格里的输入列中的图像列，哪个模型对应的图像输入是√。看表格，Doubao\-1.5\-vision那一行的输入图像列是√，其他两个Doubao\-1.5\-pro和lite的输入图像都是×，所以答案是Doubao\-1.5\-vision。<br><br>* 回答：支持输入图片的模型系列是Doubao\-1.5\-vision |
+
+
+
+<Tabs>
+<Tab zoneid="wtJ0RN1UJX" title="Python">
+<TabTitle>Python</TabTitle>
+
+```Python
+import os
+from arkruntime import Ark
+
+client = Ark(
+    base_url='https://ark.cn-beijing.volces.com/api/v3',
+    api_key=os.getenv('ARK_API_KEY'),
+)
+
+response = client.responses.create(
+    model="doubao-seed-2-1-pro-260628",
+    input=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_image",
+                    "image_url": "https://ark-project.tos-cn-beijing.volces.com/doc_image/ark_demo_img_1.png"
+                },
+                {
+                    "type": "input_text",
+                    "text": "支持输入图片的模型系列是哪个？"
+                },
+            ],
+        }
+    ]
+)
+
+for item in response.output:
+    if item.type == "reasoning":
+        for summary in item.summary:
+            if summary.type == "summary_text":
+                print(f"思考：{summary.text}")
+    elif item.type == "message":
+        for content in item.content:
+            if content.type == "output_text":
+                print(f"回答：{content.text}")
+```
+
+
+
+</Tab>
+<Tab zoneid="Z7eW1D4EYk" title="Curl">
+<TabTitle>Curl</TabTitle>
+
+```Bash
+curl https://ark.cn-beijing.volces.com/api/v3/responses \
+-H "Authorization: Bearer $ARK_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+    "model": "doubao-seed-2-1-pro-260628",
+    "input": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_image",
+                    "image_url": "https://ark-project.tos-cn-beijing.volces.com/doc_image/ark_demo_img_1.png"
+                },
+                {
+                    "type": "input_text",
+                    "text": "支持输入图片的模型系列是哪个？"
+                }
+            ]
+        }
+    ]
+}'
+```
+
+
+
+</Tab>
+<Tab zoneid="M31UKfk2ju" title="Go">
+<TabTitle>Go</TabTitle>
+
+```Go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "github.com/volcengine/ark-runtime-go/arkruntime"
+    "github.com/volcengine/ark-runtime-go/arkruntime/model/responses"
+)
+
+func main() {
+    client := arkruntime.NewClientWithApiKey(
+        // Get API Key：https://ark.volcengine.com/region:cn-beijing/apikey
+        os.Getenv("ARK_API_KEY"),
+        arkruntime.WithBaseUrl("https://ark.cn-beijing.volces.com/api/v3"),
+    )
+    ctx := context.Background()
+
+    inputMessage := responses.InputItem{
+        OneOf: responses.NewItemEasyMessageInputItemSum(
+            responses.ItemEasyMessage{
+                Role: responses.NewOptMessageRole(responses.MessageRoleUser),
+                Content: responses.NewContentItemArrayMessageContent(
+                    []responses.ContentItem{
+            responses.ContentItem{OneOf: responses.NewContentItemImageContentItemSum(responses.ContentItemImage{Type: responses.ContentItemImageTypeInputImage, ImageURL: responses.NewOptString("https://ark-project.tos-cn-beijing.volces.com/doc_image/ark_demo_img_1.png")})},
+            responses.ContentItem{OneOf: responses.NewContentItemTextContentItemSum(responses.ContentItemText{Type: responses.ContentItemTextTypeInputText, Text: "支持输入图片的模型系列是哪个？"})},
+                    },
+                ),
+            },
+        ),
+    }
+
+    resp, err := client.CreateResponses(ctx, &responses.ResponsesRequest{
+        Model: "doubao-seed-2-1-pro-260628",
+        Input: responses.NewInputItemArrayResponsesInput([]responses.InputItem{inputMessage}),
+    })
+    if err != nil {
+        fmt.Printf("response error: %v\n", err)
+        return
+    }
+    fmt.Println(resp)
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="ftuOCa5zxc" title="Java">
+<TabTitle>Java</TabTitle>
+
+```Java
+package com.ark.sample;
+
+import com.volcengine.ark.runtime.service.ArkService;
+import com.volcengine.ark.runtime.models.responses.*;
+public class demo {
+  public static void main(String[] args) {
+    String apiKey = System.getenv("ARK_API_KEY");
+    ArkService arkService = ArkService.builder().apiKey(apiKey)
+            .baseUrl("https://ark.cn-beijing.volces.com/api/v3")
+        .build();
+
+    ResponsesRequest request = ResponsesRequest.builder()
+        .model("doubao-seed-2-1-pro-260628")
+        .input(ResponsesInput.ofList(java.util.Arrays.asList(ItemEasyMessage.builder().role(MessageRole.USER).content(
+                MessageContent.ofList(java.util.Arrays.asList(ContentItemImage.builder()
+                        .imageUrl("https://ark-project.tos-cn-beijing.volces.com/doc_image/ark_demo_img_1.png").build(), ContentItemText.builder().text("支持输入图片的模型系列是哪个？").build())))
+                .build())))
+        .build();
+    Response resp = arkService.createResponse(request);
+    System.out.println(resp);
+
+    arkService.shutdownExecutor();
+  }
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="WWB4Bcq84f" title="OpenAI SDK">
+<TabTitle>OpenAI SDK</TabTitle>
+
+```Python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url='https://ark.cn-beijing.volces.com/api/v3',
+    api_key=os.getenv('ARK_API_KEY'),
+)
+
+response = client.responses.create(
+    model="doubao-seed-2-1-pro-260628",
+    input=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_image",
+                    "image_url": "https://ark-project.tos-cn-beijing.volces.com/doc_image/ark_demo_img_1.png"
+                },
+                {
+                    "type": "input_text",
+                    "text": "支持输入图片的模型系列是哪个？"
+                },
+            ],
+        }
+    ]
+)
+
+for item in response.output:
+    if item.type == "reasoning":
+        for summary in item.summary:
+            if summary.type == "summary_text":
+                print(f"思考：{summary.text}")
+    elif item.type == "message":
+        for content in item.content:
+            if content.type == "output_text":
+                print(f"回答：{content.text}")
+```
+
+
+
+</Tab>
+</Tabs>
+
+
+
+* [多模态理解](https://ark.volcengine.com/region:cn-beijing/docs/82379/1958521?lang=zh)：多模态理解详细使用指南。
+
+* [视觉定位 Grounding](https://ark.volcengine.com/region:cn-beijing/docs/82379/1616136?lang=zh)：图片中找到对应目标并返回坐标任务。
+
+* [GUI Agent 能力](https://ark.volcengine.com/region:cn-beijing/docs/82379/1584296?lang=zh)：在计算机/移动设备中完成自动化任务。
+
+* [文件输入(Files API)](https://ark.volcengine.com/region:cn-beijing/docs/82379/1885708?lang=zh)：传入图片、视频、文档接口。
+
+
+<span id="d481ca5b"></span>
+## 图片生成
+
+传入图片、文字给模型，进行以下场景&任务：
+
+
+* 广告、海报、组图等图片生成；
+
+* 增改元素、颜色更换等图片编辑；
+
+* 油墨、水墨等风格切换。
+
+
+
+<span aceTableMode="list" aceTableWidth="4,4"></span>
+|提示词 |输出预览 |
+|---|---|
+|充满活力的特写编辑肖像，模特眼神犀利，头戴雕塑感帽子，色彩拼接丰富，眼部焦点锐利，景深较浅，具有Vogue杂志封面的美学风格，采用中画幅拍摄，工作室灯光效果强烈。 |<span>![图片](https://p9-arcosite.byteimg.com/tos-cn-i-goo7wpa0wc/00fb66006eb84b16965b620b6e1f2d78~tplv-goo7wpa0wc-image.image) </span> |
+
+
+
+<Tabs>
+<Tab zoneid="D8DGgvthXb" title="Python">
+<TabTitle>Python</TabTitle>
+
+```Python
+import os
+# Install SDK:  pip install arkruntime
+from arkruntime import Ark
+
+client = Ark(
+    # The base URL for model invocation
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    # Get API Key：https://ark.volcengine.com/region:cn-beijing/apikey
+    api_key=os.getenv('ARK_API_KEY'),
+)
+
+imagesResponse = client.images.generate(
+    # Replace with Model ID
+    model="doubao-seedream-5-0-260128",
+    prompt="充满活力的特写编辑肖像，模特眼神犀利，头戴雕塑感帽子，色彩拼接丰富，眼部焦点锐利，景深较浅，具有Vogue杂志封面的美学风格，采用中画幅拍摄，工作室灯光效果强烈。",
+    size="2K",
+    response_format="url",
+    watermark=False
+)
+
+print(imagesResponse.data[0].url)
+```
+
+
+
+</Tab>
+<Tab zoneid="qdGInbgTPM" title="Curl">
+<TabTitle>Curl</TabTitle>
+
+```Bash
+curl https://ark.cn-beijing.volces.com/api/v3/images/generations \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ARK_API_KEY" \
+  -d '{
+    "model": "doubao-seedream-5-0-260128",
+    "prompt": "充满活力的特写编辑肖像，模特眼神犀利，头戴雕塑感帽子，色彩拼接丰富，眼部焦点锐利，景深较浅，具有Vogue杂志封面的美学风格，采用中画幅拍摄，工作室灯光效果强烈。",
+    "size": "2K",
+    "watermark": false
+}'
+```
+
+
+
+* 您可按需替换 Model ID。Model ID 查询见 [模型列表](https://ark.volcengine.com/region:cn-beijing/docs/82379/1330310?lang=zh)。
+
+
+</Tab>
+<Tab zoneid="znOVuVSrKh" title="Java">
+<TabTitle>Java</TabTitle>
+
+```Java
+package com.ark.sample;
+
+import com.volcengine.ark.runtime.models.images.*;
+import com.volcengine.ark.runtime.service.ArkService;
+import okhttp3.ConnectionPool;
+import okhttp3.Dispatcher;
+import java.util.concurrent.TimeUnit;
+
+public class ImageGenerationsExample {
+    public static void main(String[] args) {
+        // Get API Key：https://ark.volcengine.com/region:cn-beijing/apikey
+        String apiKey = System.getenv("ARK_API_KEY");
+        ConnectionPool connectionPool = new ConnectionPool(5, 1, TimeUnit.SECONDS);
+        Dispatcher dispatcher = new Dispatcher();
+        ArkService service = ArkService.builder()
+                .baseUrl("https://ark.cn-beijing.volces.com/api/v3")
+                // The base URL for model invocation
+                .dispatcher(dispatcher)
+                .connectionPool(connectionPool)
+                .apiKey(apiKey)
+                .build();
+
+        CreateImageGenerationRequest generateRequest = CreateImageGenerationRequest.builder()
+                .model("doubao-seedream-5-0-260128") // Replace with Model ID
+                .prompt("充满活力的特写编辑肖像，模特眼神犀利，头戴雕塑感帽子，色彩拼接丰富，眼部焦点锐利，景深较浅，具有Vogue杂志封面的美学风格，采用中画幅拍摄，工作室灯光效果强烈。")
+
+                .size("2K")
+                .sequentialImageGeneration(SequentialImageGenerationMode.DISABLED)
+                .responseFormat(ResponseFormat.URL)
+                .stream(false)
+                .watermark(false)
+                .build();
+        ImageGenerationResponse imagesResponse = service.generateImages(generateRequest);
+        System.out.println(imagesResponse.getData().get(0).getUrl());
+
+        service.shutdownExecutor();
+    }
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="qSunBahFrX" title="Go">
+<TabTitle>Go</TabTitle>
+
+```Go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "github.com/volcengine/ark-runtime-go/arkruntime"
+    model "github.com/volcengine/ark-runtime-go/arkruntime/model/images"
+)
+
+func main() {
+    client := arkruntime.NewClientWithApiKey(
+        os.Getenv("ARK_API_KEY"), // Get API Key：https://ark.volcengine.com/region:cn-beijing/apikey
+        arkruntime.WithBaseUrl("https://ark.cn-beijing.volces.com/api/v3"), // The base URL for model invocation
+    )
+    ctx := context.Background()
+
+    generateReq := &model.CreateImageGenerationRequest{
+       Model:          "doubao-seedream-5-0-260128", // Replace with Model ID
+       Prompt:         model.NewOptString("充满活力的特写编辑肖像，模特眼神犀利，头戴雕塑感帽子，色彩拼接丰富，眼部焦点锐利，景深较浅，具有Vogue杂志封面的美学风格，采用中画幅拍摄，工作室灯光效果强烈。"),
+
+       Size:           model.NewOptString("2K"),
+       ResponseFormat: model.NewOptResponseFormat(model.ResponseFormatURL),
+       Watermark:      model.NewOptBool(false),
+    }
+
+    imagesResponse, err := client.GenerateImages(ctx, generateReq)
+    if err != nil {
+       fmt.Printf("generate images error: %v\n", err)
+       return
+    }
+
+    fmt.Printf("%s\n", imagesResponse.Data[0].URL.Or(""))
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="pvNBBuUVat" title="OpenAI">
+<TabTitle>OpenAI</TabTitle>
+
+```Python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://ark.cn-beijing.volces.com/api/v3", # The base URL for model invocation
+    api_key=os.getenv('ARK_API_KEY'),  # Get API Key：https://ark.volcengine.com/region:cn-beijing/apikey
+)
+
+imagesResponse = client.images.generate(
+    # Replace with Model ID
+    model="doubao-seedream-5-0-260128",
+    prompt="充满活力的特写编辑肖像，模特眼神犀利，头戴雕塑感帽子，色彩拼接丰富，眼部焦点锐利，景深较浅，具有Vogue杂志封面的美学风格，采用中画幅拍摄，工作室灯光效果强烈。",
+    size="2K",
+    response_format="url",
+    extra_body={
+        "watermark": False,
+    },
+)
+
+print(imagesResponse.data[0].url)
+```
+
+
+
+</Tab>
+</Tabs>
+
+
+
+* [Doubao Seedream 4.0-5.0 教程](https://ark.volcengine.com/region:cn-beijing/docs/82379/1824121?lang=zh)：主流生图模型能力以及如何通过 API 调用。
+
+* [Seedream 4.0-5.0 提示词指南](https://ark.volcengine.com/region:cn-beijing/docs/82379/1829186?lang=zh)：使用生图模型时，如何编写提示词。
+
+
+<span id="18692b80"></span>
+## 视频生成
+
+通过文本描述、图像素材、视频素材，快速生成高质量、风格多样的视频内容。
+
+
+<span aceTableMode="list" aceTableWidth="4,4"></span>
+|提示词 |输出画面预览 |
+|---|---|
+|一位身穿绿色亮片礼服的女性站在粉红色背景前，周围飘落着五彩斑斓的彩纸 |<span>![图片](https://p9-arcosite.byteimg.com/tos-cn-i-goo7wpa0wc/aae3d0c636954bdd9e66e7a23e98c480~tplv-goo7wpa0wc-image.image) </span> |
+
+
+
+<Tabs>
+<Tab zoneid="phD3ZDaNPc" title="Python">
+<TabTitle>Python</TabTitle>
+
+```Python
+import os
+import time
+# Install SDK:  pip install arkruntime
+from arkruntime import Ark
+
+client = Ark(
+    base_url="https://ark.cn-beijing.volces.com/api/v3", # The base URL for model invocation
+    api_key=os.environ.get("ARK_API_KEY"), # Get API Key：https://ark.volcengine.com/region:cn-beijing/apikey
+)
+
+if __name__ == "__main__":
+    print("----- create request -----")
+    create_result = client.content_generation.tasks.create(
+        model="doubao-seedance-2-0-260128", # Replace with Model ID
+        content=[
+            {
+                # Combination of text prompt and parameters
+                "type": "text",
+                "text": "一位身穿绿色亮片礼服的女性站在粉红色背景前，周围飘落着五彩斑斓的彩纸 --wm true --dur 5"
+            }
+        ]
+    )
+    print(create_result)
+
+    # Polling query section
+    print("----- polling task status -----")
+    task_id = create_result.id
+    max_wait = 600  # Maximum wait time in seconds
+    interval = 10   # Initial polling interval
+    start = time.time()
+
+    while time.time() - start < max_wait:
+        get_result = client.content_generation.tasks.get(task_id=task_id)
+        status = get_result.status
+        if status == "succeeded":
+            print("----- task succeeded -----")
+            print(get_result)
+            break
+        elif status == "failed":
+            print("----- task failed -----")
+            print(f"Error: {get_result.error}")
+            break
+        else:
+            print(f"Current status: {status}, retrying after {interval:.0f}s...")
+            time.sleep(interval)
+            interval = min(interval * 1.5, 30)
+    else:
+        raise TimeoutError(f"Task {task_id} timed out after {max_wait}s. "
+                            f"Task may still be running - check status manually.")
+```
+
+
+
+</Tab>
+<Tab zoneid="CrIS2j4AH8" title="Java">
+<TabTitle>Java</TabTitle>
+
+```Java
+package com.ark.sample;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import com.volcengine.ark.runtime.models.content_generation.*;
+import com.volcengine.ark.runtime.service.ArkService;
+
+public class ContentGenerationTaskExample {
+  public static void main(String[] args) {
+    String apiKey = System.getenv("ARK_API_KEY");
+    ArkService service = ArkService.builder()
+        .baseUrl("https://ark.cn-beijing.volces.com/api/v3")
+        // The base URL for model invocation
+        .apiKey(apiKey)
+        .build();
+
+    System.out.println("----- create request -----");
+    List<ContentItem> contents = new ArrayList<>();
+    contents.add(ContentItem.builder()
+        .type(ContentType.TEXT)
+        .text("一位身穿绿色亮片礼服的女性站在粉红色背景前，周围飘落着五彩斑斓的彩纸 --wm true --dur 5")
+        .build());
+
+    // Create a video generation task
+    CreateContentGenerationTaskRequest createRequest = CreateContentGenerationTaskRequest.builder()
+        .model("doubao-seedance-2-0-260128") // Replace with Model ID
+        .content(contents)
+        .build();
+
+    CreateContentGenerationTaskResponse createResult = service.createContentGenerationTask(createRequest);
+    System.out.println(createResult);
+
+    // Get the details of the task
+    String taskId = createResult.getId();
+    String getRequest = taskId;
+
+    System.out.println("----- polling task status -----");
+    while (true) {
+      try {
+        ContentGenerationTask getResponse = service.getContentGenerationTask(getRequest);
+        String status = getResponse.getStatus().toString();
+        if ("succeeded".equalsIgnoreCase(status)) {
+          System.out.println("----- task succeeded -----");
+          System.out.println(getResponse);
+          service.shutdownExecutor();
+          break;
+        } else if ("failed".equalsIgnoreCase(status)) {
+          System.out.println("----- task failed -----");
+          System.out.println("Error: " + getResponse.getStatus());
+          service.shutdownExecutor();
+          break;
+        } else {
+          System.out.printf("Current status: %s, Retrying in 3 seconds...\n", status);
+          TimeUnit.SECONDS.sleep(3);
+        }
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        System.err.println("Polling interrupted");
+        service.shutdownExecutor();
+        break;
+      }
+    }
+  }
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="l3kGs6ERdx" title="Go">
+<TabTitle>Go</TabTitle>
+
+```Go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    "time"
+    "github.com/volcengine/ark-runtime-go/arkruntime"
+    model "github.com/volcengine/ark-runtime-go/arkruntime/model/contentgeneration"
+)
+
+func main() {
+    client := arkruntime.NewClientWithApiKey(
+        os.Getenv("ARK_API_KEY"), // Get API Key：https://ark.volcengine.com/region:cn-beijing/apikey
+        arkruntime.WithBaseUrl("https://ark.cn-beijing.volces.com/api/v3"), // The base URL for model invocation
+    )
+    ctx := context.Background()
+    // Replace with Model ID
+    modelEp := "doubao-seedance-2-0-260128"
+
+    fmt.Println("----- create request -----")
+    createReq := &model.CreateContentGenerationTaskRequest{
+        Model: modelEp,
+        Content: []model.ContentItem{
+            {
+                Type: model.ContentTypeText,
+                Text: model.NewOptString("一位身穿绿色亮片礼服的女性站在粉红色背景前，周围飘落着五彩斑斓的彩纸 --wm true --dur 5"),
+
+            },
+        },
+    }
+    createResp, err := client.CreateContentGenerationTask(ctx, createReq)
+    if err != nil {
+        fmt.Printf("create content generation error: %v", err)
+        return
+    }
+    taskID := createResp.ID
+    fmt.Printf("Task Created with ID: %s", taskID)
+
+    // Polling query section
+    fmt.Println("----- polling task status -----")
+    for {
+        getReq := taskID
+        getResp, err := client.GetContentGenerationTask(ctx, getReq)
+        if err != nil {
+            fmt.Printf("get content generation task error: %v", err)
+            return
+        }
+
+        status := getResp.Status
+        if status == "succeeded" {
+            fmt.Println("----- task succeeded -----")
+            fmt.Printf("Task ID: %s \n", getResp.ID)
+            fmt.Printf("Model: %s \n", getResp.Model)
+            fmt.Printf("Video URL: %s \n", getResp.Content.Or(model.TaskContent{}).VideoURL.Or(""))
+            fmt.Printf("Completion Tokens: %d \n", getResp.Usage.Or(model.TaskUsage{}).CompletionTokens)
+            fmt.Printf("Created At: %d, Updated At: %d", getResp.CreatedAt.Or(0), getResp.UpdatedAt.Or(0))
+            return
+        } else if status == "failed" {
+            fmt.Println("----- task failed -----")
+            if getResp.Error.IsSet() {
+                fmt.Printf("Error Code: %s, Message: %s", getResp.Error.Value.Code, getResp.Error.Value.Message)
+            }
+            return
+        } else {
+            fmt.Printf("Current status: %s, Retrying in 3 seconds... \n", status)
+            time.Sleep(3 * time.Second)
+        }
+    }
+}
+```
+
+
+
+</Tab>
+</Tabs>
+
+
+
+* [视频生成教程](https://ark.volcengine.com/region:cn-beijing/docs/82379/2298881?lang=zh)：学习如何使用模型的视频生成能力，包括文本生成视频、首尾帧生视频、首帧生成视频等。
+
+* [Seedance-1.0-pro&pro-fast 提示词指南](https://ark.volcengine.com/region:cn-beijing/docs/82379/1631633?lang=zh)：使用生视频模型时，如何编写提示词。
+
+
+<span id="086a3233"></span>
+## 工具使用
+
+通过工具/插件让模型具体读取外部数据及函数的能力，包括
+
+
+* 内置工具：联网搜索、图片处理、知识库检索等已集成至方舟平台的工具。
+
+* 三方工具：兼容MCP 的三方工具。
+
+* 自定义工具：您自行定义及开发的工具。
+
+
+
+<span aceTableMode="list" aceTableWidth="4,4"></span>
+|输入 |输出预览 |
+|---|---|
+|What's the weather like in Beijing? |According to the latest weather data as of March 10, 2026, the current weather in Beijing is sunny with a gentle wind (less than level 3). The temperature around 11:30 AM is approximately 9°C, and it is expected to reach a high of 12°C during the day. The weather will remain clear at night with a low temperature of 1°C.<br><br>**Source**: Weather forecasts updated on March 10, 2026, from the Central Meteorological Observatory.<br><br>**Note: Data is accurate as of the latest available update at 05:30 AM on March 10.**  |
+
+
+
+<Tabs>
+<Tab zoneid="JxgX0HBu68" title="Python">
+<TabTitle>Python</TabTitle>
+
+```Python
+import os
+from arkruntime import Ark
+
+client = Ark(
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    api_key=os.getenv("ARK_API_KEY"),
+)
+
+response = client.responses.create(
+    model="doubao-seed-2-1-pro-260628",
+    input=[{"role": "user", "content": "What's the weather like in Beijing?"}],
+    tools=[
+        {
+            "type": "web_search",
+            "max_keyword": 2,
+        }
+    ],
+)
+
+for item in response.output:
+    if item.type == "message":
+        for content in item.content:
+            if content.type == "output_text":
+                print(content.text)
+```
+
+
+
+</Tab>
+<Tab zoneid="lTgfaJOMYv" title="Curl">
+<TabTitle>Curl</TabTitle>
+
+```Bash
+curl https://ark.cn-beijing.volces.com/api/v3/responses \
+-H "Authorization: Bearer $ARK_API_KEY" \
+-H 'Content-Type: application/json' \
+-d '{
+    "model": "doubao-seed-2-1-pro-260628",
+    "stream": true,
+    "tools": [
+        {
+            "type": "web_search",
+            "max_keyword": 3
+        }
+    ],
+    "input": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "What is the weather like in Beijing?"
+                }
+            ]
+        }
+    ]
+}'
+```
+
+
+
+</Tab>
+<Tab zoneid="E5wwDzsiqH" title="Java">
+<TabTitle>Java</TabTitle>
+
+```Java
+package com.ark.sample;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.volcengine.ark.runtime.models.responses.*;
+import com.volcengine.ark.runtime.service.ArkService;
+import java.util.Arrays;
+import java.util.List;
+
+public class demo {
+    public static ObjectMapper om = new ObjectMapper();
+
+    public demo() throws JsonProcessingException {
+    }
+
+    public static List<Tool> buildTools() {
+        WebSearchTool t = WebSearchTool.builder().build();
+        System.out.println(Arrays.asList(t));
+        return Arrays.asList(t);
+    }
+
+    public static void main(String[] args) throws JsonProcessingException {
+        String apiKey = System.getenv("ARK_API_KEY");
+
+        ArkService arkService = ArkService.builder().apiKey(apiKey)
+                .baseUrl("https://ark.cn-beijing.volces.com/api/v3")
+                .build();
+        ResponsesRequest req = ResponsesRequest.builder()
+                .model("doubao-seed-2-1-pro-260628")
+                .input(ResponsesInput.ofList(java.util.Arrays.asList(ItemEasyMessage.builder().role(MessageRole.USER).content(
+                                MessageContent.ofList(java.util.Arrays.asList(ContentItemText.builder().text("What's the weather like in Beijing?").build()))
+                        ).build())))
+                .tools(buildTools())
+                .build();
+        Response resp = arkService.createResponse(req);
+        System.out.println(resp);
+
+        arkService.shutdownExecutor();
+    }
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="kdAGEKRAsO" title="Go">
+<TabTitle>Go</TabTitle>
+
+```Go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+
+    "github.com/volcengine/ark-runtime-go/arkruntime"
+    "github.com/volcengine/ark-runtime-go/arkruntime/model/responses"
+)
+
+func main() {
+    client := arkruntime.NewClientWithApiKey(
+        os.Getenv("ARK_API_KEY"),
+        arkruntime.WithBaseUrl("https://ark.cn-beijing.volces.com/api/v3"),
+    )
+    request := &responses.ResponsesRequest{
+        Model: "doubao-seed-2-1-pro-260628",
+        Input: responses.NewStringResponsesInput("What is the weather in Beijing today?"),
+        Tools: []responses.Tool{
+            {
+                OneOf: responses.NewWebSearchToolToolSum(
+                    responses.WebSearchTool{
+                        Type: responses.WebSearchToolTypeWebSearch,
+                    },
+                ),
+            },
+        },
+        MaxToolCalls: responses.NewOptInt64(1),
+    }
+
+    response, err := client.CreateResponses(context.Background(), request)
+    if err != nil {
+        fmt.Printf("response error: %v\n", err)
+        return
+    }
+    fmt.Printf("Response: %v\n", response)
+}
+```
+
+
+
+</Tab>
+<Tab zoneid="oFkfOYwYay" title="OpenAI SDK">
+<TabTitle>OpenAI SDK</TabTitle>
+
+```Python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    api_key=os.getenv("ARK_API_KEY"),
+)
+
+response = client.responses.create(
+    model="doubao-seed-2-1-pro-260628",
+    input=[{"role": "user", "content": "What's the weather like in Beijing?"}],
+    tools=[
+        {
+            "type": "web_search",
+            "max_keyword": 2,
+        }
+    ],
+)
+
+for item in response.output:
+    if item.type == "message":
+        for content in item.content:
+            if content.type == "output_text":
+                print(content.text)
+```
+
+
+
+</Tab>
+</Tabs>
+
+
+
+* [工具调用](https://ark.volcengine.com/region:cn-beijing/docs/82379/1958524?lang=zh)：学习如何让模型使用内置工具，如网页搜索、知识库检索、豆包助手等能力。
+
+* [Function Calling（函数调用）](https://ark.volcengine.com/region:cn-beijing/docs/82379/1262342?lang=zh)：学习如何让模型调用自定义的工具。
+
+* [云部署 MCP / Remote MCP](https://ark.volcengine.com/region:cn-beijing/docs/82379/1827534?lang=zh)：学习如何让模型使用 MCP 服务。
+
+    &nbsp;
+
+
+<span id=".XzUt5LiL5LiA5q2l"></span>
+# 5 下一步
+
+现在你已经完成了首次方舟模型服务的 API 调用，你可以探索模型的更多能力，包括：
+
+
+* [模型列表](https://ark.volcengine.com/region:cn-beijing/docs/82379/1330310?lang=zh)：快速浏览方舟提供的模型全集以及各个模型所具备的能力，快速根据你的实际场景匹配到合适的模型。
+
+* [模型接入指南（LLM） - 标准流程](https://ark.volcengine.com/region:cn-beijing/docs/82379/2666489?lang=zh)：把方舟大模型接入生产环境的完整流程（参数配置、Harness 接入、突发流量爬坡、上线监控）。
+
+* [模型接入指南（LLM） - 常见问题](https://ark.volcengine.com/region:cn-beijing/docs/82379/2666490?lang=zh)：接入 / 上线过程中的效果、可用性、接入配置、选型常见问题。
+
+* [模型接入指南（LLM） - 性能评测](https://ark.volcengine.com/region:cn-beijing/docs/82379/2666491?lang=zh)：上线前跑一次性能基线评测（TTFT / TPOT / E2E / 缓存命中率）。
+
+
+
+

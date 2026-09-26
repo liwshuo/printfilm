@@ -1,0 +1,30 @@
+{
+  "name": "@dramaflow/desktop-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local Hono HTTP + SSE server exposing @dramaflow/core-services over REST. Single-process, single-user, backed by better-sqlite3 (data-and-api-v1.md §7 / §10).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@dramaflow/domain": "workspace:*",
+    "@dramaflow/repositories": "workspace:*",
+    "@dramaflow/core-services": "workspace:*",
+    "hono": "^4.6.5",
+    "@hono/node-server": "^1.13.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
