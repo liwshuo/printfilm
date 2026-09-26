@@ -91,8 +91,12 @@ export default function EpisodeWorkspacePage() {
   const [genCountOverride, setGenCountOverride] = useState<number | undefined>(undefined);
   const [genErr, setGenErr] = useState<string | null>(null);
   const [confirmingSceneId, setConfirmingSceneId] = useState<string | null>(null);
-  // Round-3 P1-④：正在被 AI 单独重生的 scene。用独立 state 避免与 confirm 按钮互相阻塞。
-  const [regeneratingSceneId, setRegeneratingSceneId] = useState<string | null>(null);
+  // Round-3 P1-④：正在被 AI 单独重生的 scene 集合。
+  // 用 Set 保存多个 sceneId → 支持胖哥同时对多个场次点「重生本场」并行处理，
+  // 每个场次自己的 loading 状态互不干扰。
+  const [regeneratingSceneIds, setRegeneratingSceneIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   // Round-3 P1-①：历史版本抽屉。target 为 null 表示关闭。
   // 通用化：支持 scenes（单场）与 episodes（本篇故事）两类实体的历史/回滚。
   const [historyTarget, setHistoryTarget] = useState<HistoryTarget | null>(null);
@@ -434,11 +438,17 @@ export default function EpisodeWorkspacePage() {
    *   - 提示：下游 shots / 首帧图 / 视频可能因此需要重生（P2-⑤ 会自动标 stale）。
    */
   async function onRegenerateScene(s: Scene) {
+    // 已经在重生中就忽略（避免同一场次的重复点击导致版本冲突）。
+    if (regeneratingSceneIds.has(s.id)) return;
     const confirmed = window.confirm(
       `确认让 AI 重新生成 S${s.sceneNo}${s.title ? ` · ${s.title}` : ""} 吗？\n\n此操作会覆盖原摘要 / 戏剧目标 / 冲突，且状态会回到「草稿」，需要重新走确认流程；关联的分镜镜头、首帧图、视频可能需要重生。`,
     );
     if (!confirmed) return;
-    setRegeneratingSceneId(s.id);
+    setRegeneratingSceneIds((prev) => {
+      const next = new Set(prev);
+      next.add(s.id);
+      return next;
+    });
     setSceneErrors((prev) => {
       const next = { ...prev };
       delete next[s.id];
@@ -457,7 +467,11 @@ export default function EpisodeWorkspacePage() {
         setError(String(err));
       }
     } finally {
-      setRegeneratingSceneId(null);
+      setRegeneratingSceneIds((prev) => {
+        const next = new Set(prev);
+        next.delete(s.id);
+        return next;
+      });
     }
   }
 
@@ -1250,12 +1264,12 @@ export default function EpisodeWorkspacePage() {
                               type="button"
                               className="episode-card-cta episode-card-cta-secondary"
                               disabled={
-                                regeneratingSceneId === s.id || confirmingSceneId === s.id
+                                regeneratingSceneIds.has(s.id) || confirmingSceneId === s.id
                               }
                               onClick={() => onRegenerateScene(s)}
-                              title="仅重新生成本场，其他场次保持不变"
+                              title="仅重新生成本场，其他场次保持不变（支持同时对多个场次并行触发）"
                             >
-                              {regeneratingSceneId === s.id ? "AI 重生中…" : "🔄 重生本场"}
+                              {regeneratingSceneIds.has(s.id) ? "AI 重生中…" : "🔄 重生本场"}
                             </button>
                             {confirmed ? (
                               <button
@@ -1271,7 +1285,7 @@ export default function EpisodeWorkspacePage() {
                                 type="button"
                                 className="episode-card-cta episode-card-cta-primary"
                                 disabled={
-                                  confirmingSceneId === s.id || regeneratingSceneId === s.id
+                                  confirmingSceneId === s.id || regeneratingSceneIds.has(s.id)
                                 }
                                 onClick={() => onConfirmScene(s)}
                               >
